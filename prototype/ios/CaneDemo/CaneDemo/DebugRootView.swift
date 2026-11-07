@@ -11,7 +11,7 @@ struct DebugRootView: View {
                 Text("Supervised cane demo")
                     .font(.largeTitle)
                     .accessibilityAddTraits(.isHeader)
-                Text("Not a mobility aid. The existing cane stays in use. No claim here means the way is clear. A quiet hazard channel is not an all-clear.")
+                Text("Not a mobility aid. The existing cane stays in use. Video stays on this iPhone. No claim here means the way is clear. A quiet hazard channel is not an all-clear.")
                     .font(.body)
                 CameraPreview(session: demo.session)
                     .frame(height: 220)
@@ -80,16 +80,19 @@ struct DebugRootView: View {
 
     private var simulationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Simulation controls")
+            Text("Actuator bench test")
                 .font(.title2)
-            Toggle("Simulated elevated hazard", isOn: $demo.simulatedHazard)
-            Toggle("Simulated system unavailable", isOn: $demo.simulatedUnavailable)
-            Picker("Demo route label", selection: $demo.simulatedRoute) {
-                Text("None").tag(CANE_ROUTE_NONE)
+            Text("These switches send a simulated packet. They do not read the camera and they do not detect an obstacle.")
+            Toggle("D2 hazard actuator", isOn: $demo.simulatedHazard)
+                .accessibilityLabel("Simulated D2 hazard actuator")
+            Toggle("D3 unavailable actuator", isOn: $demo.simulatedUnavailable)
+                .accessibilityLabel("Simulated D3 unavailable actuator")
+            Picker("D4 route actuator label", selection: $demo.simulatedRoute) {
+                Text("Off").tag(CANE_ROUTE_NONE)
                 Text("Left label").tag(CANE_ROUTE_DEMO_LEFT)
                 Text("Right label").tag(CANE_ROUTE_DEMO_RIGHT)
             }
-            Text("A left or right label only marks a manual demo cue on the route channel. It is not a direction that avoids a collision.")
+            Text("D4 only means a manual left or right label is active. Neither label is a clear direction. D5 is the link actuator. The board pulses it. Disconnect Bluetooth to test the outage pattern.")
                 .font(.footnote)
         }
         .onChange(of: demo.simulatedHazard) { _, _ in demo.refreshClaim() }

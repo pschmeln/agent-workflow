@@ -33,6 +33,13 @@ static cane_input_t simulation_input(void) {
     return input;
 }
 
+static void test_actuator_pins(void) {
+    expect(CANE_PIN_HAZARD == 2, "hazard actuator logic output is D2");
+    expect(CANE_PIN_UNAVAILABLE == 3, "unavailable actuator logic output is D3");
+    expect(CANE_PIN_ROUTE == 4, "route actuator logic output is D4");
+    expect(CANE_PIN_LINK == 5, "link actuator logic output is D5");
+}
+
 static void test_crc_vector(void) {
     const uint8_t digits[] = "123456789";
     expect(cane_crc16(digits, 9) == 0x29B1, "CRC-16/CCITT-FALSE vector");
@@ -277,6 +284,7 @@ static void test_assessment_command_is_sendable(void) {
 }
 
 int main(void) {
+    test_actuator_pins();
     test_crc_vector();
     test_camera_makes_no_hazard_or_route();
     test_camera_unavailable_conditions();

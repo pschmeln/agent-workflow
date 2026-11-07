@@ -1,0 +1,73 @@
+# Compiles the native iPhone app and the UNO R4 WiFi sketch.
+# The phone still processes video locally at runtime. These jobs do not
+# sign, install, flash, or run inference.
+
+name: Prototype builds
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prototype-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-unsigned:
+    name: Unsigned iOS compile
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Compile without signing
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild \
+            -project prototype/ios/CaneDemo/CaneDemo.xcodeproj \
+            -scheme CaneDemo \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+  firmware:
+    name: UNO R4 WiFi compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Arduino CLI 1.5.1
+        run: |
+          set -euo pipefail
+          url="https://github.com/arduino/arduino-cli/releases/download/v1.5.1/arduino-cli_1.5.1_Linux_64bit.tar.gz"
+          sha="28a8e119c498a25607821c36cb2dc49e8463941b261a0d99091baa7bc692dd2b"
+          curl -fsSL -o "$RUNNER_TEMP/arduino-cli.tar.gz" "$url"
+          echo "${sha}  $RUNNER_TEMP/arduino-cli.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/arduino-cli" "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/arduino-cli.tar.gz" -C "$RUNNER_TEMP/arduino-cli"
+          install -m 0755 "$RUNNER_TEMP/arduino-cli/arduino-cli" "$RUNNER_TEMP/bin/arduino-cli"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/arduino-cli" version
+      - name: Install Renesas core 1.6.0 and ArduinoBLE 2.1.0
+        run: |
+          set -euo pipefail
+          arduino-cli core update-index
+          arduino-cli core install arduino:renesas_uno@1.6.0
+          arduino-cli lib install "ArduinoBLE@2.1.0"
+          arduino-cli core list
+          arduino-cli lib list
+      - name: Compile UNO R4 WiFi sketch
+        run: |
+          set -euo pipefail
+          arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi --warnings all prototype/firmware/uno_r4_wifi
