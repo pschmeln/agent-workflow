@@ -18,6 +18,7 @@ MARKDOWN_FILES = (
     "docs/COLLABORATION.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/task.md",
+    "docs/PROTOTYPE.md",
 )
 
 REQUIRED_FILES = MARKDOWN_FILES + (
@@ -229,8 +230,8 @@ def validate_workflow(text: str, report: Report) -> None:
     runs = [value for key, value in walk(data) if key == "run"]
     if uses != ["actions/checkout@v4"]:
         report.error(f"workflow must use only actions/checkout@v4, found {uses}")
-    if runs != ["python3 scripts/check_workflow.py"]:
-        report.error(f"workflow must run only the local checker, found {runs}")
+    if runs != ["python3 scripts/check_workflow.py", "make -C prototype test"]:
+        report.error(f"workflow must run the scaffolding checker and host logic tests, found {runs}")
     flat = text
     if "secrets." in flat:
         report.error("workflow must not reference GitHub secrets")

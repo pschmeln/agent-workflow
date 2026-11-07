@@ -1,5 +1,5 @@
-# Checks collaboration docs, templates, and local links.
-# It does not install dependencies, read secrets, or run application tests.
+# Checks collaboration docs and runs the host cane-logic tests.
+# It does not install dependencies, read secrets, compile iOS, or flash hardware.
 
 name: Workflow scaffolding
 
@@ -20,3 +20,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Validate scaffolding
         run: python3 scripts/check_workflow.py
+      - name: Run host logic tests
+        run: make -C prototype test

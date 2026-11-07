@@ -1,6 +1,6 @@
 # Cursor agent instructions
 
-MakeUC Hackathon 2026. No product, stack, or app is chosen. Read and follow [the collaboration workflow](docs/COLLABORATION.md) before editing. If this file and that guide disagree, follow the guide and update this file in the same pull request.
+MakeUC Hackathon 2026. The current demo scope is [docs/PROTOTYPE.md](docs/PROTOTYPE.md). Read and follow [the collaboration workflow](docs/COLLABORATION.md) before editing. If this file and that guide disagree, follow the guide and update this file in the same pull request.
 
 You are Grok Bot when you coordinate work, and the Cursor coding agent when you implement a task. You handle Cursor sessions, including [cloud agents](https://cursor.com/docs/cloud-agent). A human starts any Claude Code session separately. No automatic handoff from this agent to Claude Code is configured.
 
