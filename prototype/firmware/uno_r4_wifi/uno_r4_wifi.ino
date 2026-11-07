@@ -35,9 +35,24 @@ static void set_pin_low(int pin) {
     digitalWrite(pin, LOW);
 }
 
+static const char *source_name(int source) {
+    if (source == CANE_SOURCE_CAMERA) {
+        return "camera";
+    }
+    if (source == CANE_SOURCE_SIMULATION) {
+        return "simulation";
+    }
+    if (source == CANE_SOURCE_IMAGE_HEURISTIC) {
+        return "image-heuristic";
+    }
+    return "unknown";
+}
+
 static void print_outputs(uint32_t now_ms, const cane_outputs_t *out) {
     Serial.print("ms=");
     Serial.print(now_ms);
+    Serial.print(" source=");
+    Serial.print(source_name(link.command.source));
     Serial.print(" link=");
     Serial.print(out->link_state == CANE_LINK_OUTAGE ? "outage" : "heartbeat");
     Serial.print(" pins hazard=");
@@ -112,6 +127,13 @@ void loop() {
                 Serial.print("ms=");
                 Serial.print(now_ms);
                 Serial.println(" rejected packet");
+            } else {
+                Serial.print("ms=");
+                Serial.print(now_ms);
+                Serial.print(" accepted source=");
+                Serial.print(source_name(link.command.source));
+                Serial.print(" seq=");
+                Serial.println(link.command.sequence);
             }
         }
     }

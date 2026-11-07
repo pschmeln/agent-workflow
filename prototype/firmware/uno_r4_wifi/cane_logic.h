@@ -39,7 +39,8 @@ extern "C" {
 
 enum {
     CANE_SOURCE_CAMERA = 1,
-    CANE_SOURCE_SIMULATION = 2
+    CANE_SOURCE_SIMULATION = 2,
+    CANE_SOURCE_IMAGE_HEURISTIC = 3
 };
 
 enum {
@@ -84,6 +85,8 @@ typedef struct {
     int simulation_elevated_hazard;
     int simulation_unavailable;
     int route_cue;
+    int image_heuristic_elevated;
+    int image_pipeline_ready;
 } cane_input_t;
 
 typedef struct {

@@ -19,12 +19,14 @@ MARKDOWN_FILES = (
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/task.md",
     "docs/PROTOTYPE.md",
+    "docs/WEB_DEMO.md",
 )
 
 REQUIRED_FILES = MARKDOWN_FILES + (
     ".gitignore",
     ".github/workflows/workflow-check.yml",
     ".github/workflows/prototype-build.yml",
+    ".github/workflows/pages.yml",
     "scripts/check_workflow.py",
 )
 
@@ -264,6 +266,27 @@ def validate_build_workflow(text: str, report: Report) -> None:
             report.error(f"prototype build workflow is missing {item}")
     if text.count("uses: actions/checkout@v4") != 2:
         report.error("prototype build workflow must check out once per job and use no other action")
+
+
+def validate_pages_workflow(text: str, report: Report) -> None:
+    forbidden = ("pull_request_target", "secrets.", "workflow_run:", "pull_request:")
+    for token in forbidden:
+        if token in text:
+            report.error(f"pages workflow must not contain {token}")
+    required = (
+        "branches: [main]",
+        "contents: read",
+        "pages: write",
+        "id-token: write",
+        "actions/checkout@v4",
+        "actions/upload-pages-artifact@v5",
+        "actions/deploy-pages@v5",
+        "path: web",
+        "refs/heads/main",
+    )
+    for item in required:
+        if item not in text:
+            report.error(f"pages workflow is missing {item}")
 
 
 def split_front_matter(text: str) -> tuple[str, str]:
@@ -519,6 +542,9 @@ def main(argv: list[str]) -> int:
     build_workflow = ROOT / ".github/workflows/prototype-build.yml"
     if build_workflow.is_file():
         validate_build_workflow(build_workflow.read_text(encoding="utf-8"), report)
+    pages_workflow = ROOT / ".github/workflows/pages.yml"
+    if pages_workflow.is_file():
+        validate_pages_workflow(pages_workflow.read_text(encoding="utf-8"), report)
     issue = ROOT / ".github/ISSUE_TEMPLATE/task.md"
     if issue.is_file():
         validate_issue_template(issue.read_text(encoding="utf-8"), report)

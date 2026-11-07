@@ -135,7 +135,9 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
             plane_hit_meters: 0,
             simulation_elevated_hazard: 0,
             simulation_unavailable: 0,
-            route_cue: Int32(CANE_ROUTE_NONE)
+            route_cue: Int32(CANE_ROUTE_NONE),
+            image_heuristic_elevated: 0,
+            image_pipeline_ready: 0
         )
         if sourceIsSimulation {
             input.simulation_elevated_hazard = Int32(simulatedHazard ? 1 : 0)

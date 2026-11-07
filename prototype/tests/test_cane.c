@@ -283,6 +283,47 @@ static void test_assessment_command_is_sendable(void) {
     expect(packet[4] == CANE_ROUTE_NONE, "packet route is none");
 }
 
+static void test_image_heuristic_is_not_a_distance(void) {
+    cane_input_t input = camera_ready();
+    cane_assessment_t assessment;
+    cane_command_t command;
+    uint8_t packet[CANE_PACKET_BYTES];
+
+    input.image_heuristic_elevated = 1;
+    cane_assess(&input, &assessment);
+    expect(assessment.source == CANE_SOURCE_CAMERA, "camera source ignores the image flag");
+    expect(assessment.hazard == CANE_HAZARD_NO_CLAIM, "camera source still cannot raise a hazard");
+
+    input = camera_ready();
+    input.source = CANE_SOURCE_IMAGE_HEURISTIC;
+    input.image_pipeline_ready = 1;
+    input.image_heuristic_elevated = 1;
+    input.has_plane_hit = 1;
+    input.plane_hit_meters = 0.4f;
+    input.route_cue = CANE_ROUTE_DEMO_RIGHT;
+    cane_assess(&input, &assessment);
+    expect(assessment.hazard == CANE_HAZARD_ELEVATED, "fresh image heuristic can raise a hazard");
+    expect(assessment.system_unavailable == 0, "fresh image pipeline is available");
+    expect(assessment.route_cue == CANE_ROUTE_NONE, "image heuristic drops a route cue");
+    expect(assessment.plane_hit_valid == 0, "image heuristic drops a plane distance");
+    cane_command_from_assessment(&assessment, 4, 50, &command);
+    expect(cane_command_encode(&command, packet) == 1, "image heuristic packet encodes");
+    expect(packet[1] == CANE_SOURCE_IMAGE_HEURISTIC, "packet source is image heuristic");
+    expect(packet[14] == 0xFF && packet[15] == 0xFF, "image heuristic packet has no distance");
+
+    input.image_pipeline_ready = 0;
+    cane_assess(&input, &assessment);
+    expect(assessment.hazard == CANE_HAZARD_NO_CLAIM, "stale image pipeline clears the hazard");
+    expect(assessment.system_unavailable == 1, "stale image pipeline is unavailable");
+
+    fill_command(&command, CANE_SOURCE_IMAGE_HEURISTIC, CANE_HAZARD_ELEVATED, CANE_ROUTE_DEMO_LEFT);
+    command.plane_hit_cm = CANE_PLANE_CM_NONE;
+    expect(cane_command_encode(&command, packet) == 0, "image heuristic route is rejected");
+    fill_command(&command, CANE_SOURCE_IMAGE_HEURISTIC, CANE_HAZARD_ELEVATED, CANE_ROUTE_NONE);
+    command.plane_hit_cm = 30;
+    expect(cane_command_encode(&command, packet) == 0, "image heuristic distance is rejected");
+}
+
 int main(void) {
     test_actuator_pins();
     test_crc_vector();
@@ -296,6 +337,7 @@ int main(void) {
     test_patterns();
     test_status_roundtrip();
     test_assessment_command_is_sendable();
+    test_image_heuristic_is_not_a_distance();
     if (failures != 0) {
         fprintf(stderr, "%d failure(s)\n", failures);
         return 1;

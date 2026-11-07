@@ -6,6 +6,8 @@ The phone warns with uncertainty. It does not invent a safe path. A quiet hazard
 
 At runtime the path is the iPhone 16, then Bluetooth LE, then the UNO R4 WiFi, then the four actuator drivers. The phone processes the camera and motion on the device. No laptop and no cloud service infer a hazard. GitHub Actions can compile the unsigned app and the sketch. That compile job is not part of the running demo.
 
+The Bluefy page in [docs/WEB_DEMO.md](WEB_DEMO.md) is the path that can run without a Mac. It keeps video on the phone. Its hazard uses a separate image-heuristic packet. The native camera packet still cannot carry an elevated hazard.
+
 ## Fixed demo requirements
 
 - The phone is body-mounted. This repository does not design the mount.
