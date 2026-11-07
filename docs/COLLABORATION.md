@@ -1,6 +1,6 @@
 # Collaboration workflow
 
-MakeUC Hackathon 2026. This repository is the shared coordination space for the owner, one human teammate, Grok Bot in Cursor, and Claude Code. No product, stack, or app is chosen. Add application code, dependencies, or product requirements only after a human writes them in a task.
+MakeUC Hackathon 2026. This repository is the shared coordination space for the owner, one human teammate, Grok Bot in Cursor, and Claude Code. The supervised demo scope is [the prototype](PROTOTYPE.md). Further product scope still comes from a human task.
 
 Cursor loads a short operating card in [`AGENTS.md`](../AGENTS.md). Claude Code loads this guide through the import in [`CLAUDE.md`](../CLAUDE.md).
 
@@ -58,7 +58,7 @@ Keep each pull request to one task. A reviewer should be able to check the diff 
 
 GitHub fills in [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) for new pull requests once the template is on the default branch, `main`.
 
-In the pull request, name the review steps and the command you ran. The automated check in this repository validates workflow files. It is not an application test suite.
+In the pull request, name the review steps and the command you ran. The automated check validates these workflow files and runs the host cane-logic tests. It does not compile the iOS app, flash the board, or certify the demo as safe.
 
 The author opens the pull request and stops. A human merges. Prefer approval from a human who did not author the change. When the other person is unavailable, the repository owner may merge and records that on the pull request. An agent is not an approver.
 
@@ -133,7 +133,7 @@ Issue and pull request template behavior is documented in [About issue and pull 
 - [`.github/ISSUE_TEMPLATE/task.md`](../.github/ISSUE_TEMPLATE/task.md) for a task.
 - [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) for a pull request.
 - [`scripts/check_workflow.py`](../scripts/check_workflow.py) checks these files, local links, the Claude Code import, and the workflow syntax this repo can parse without added packages.
-- [`.github/workflows/workflow-check.yml`](../.github/workflows/workflow-check.yml) runs that script with Python 3 already on the GitHub-hosted runner and GitHub's `actions/checkout` action at major version 4. The workflow installs nothing and reads no secrets.
+- [`.github/workflows/workflow-check.yml`](../.github/workflows/workflow-check.yml) runs that script, then `make -C prototype test`, with Python 3 and a C compiler already on the GitHub-hosted runner and GitHub's `actions/checkout` action at major version 4. The workflow installs nothing and reads no secrets.
 
 After changing any of these files, run this from the repository root:
 
