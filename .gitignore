@@ -1,0 +1,17 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+credentials.json
+
+# Personal agent settings
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Local Python bytecode from the workflow checker
+__pycache__/
+*.pyc
