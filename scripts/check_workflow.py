@@ -24,6 +24,7 @@ MARKDOWN_FILES = (
 REQUIRED_FILES = MARKDOWN_FILES + (
     ".gitignore",
     ".github/workflows/workflow-check.yml",
+    ".github/workflows/prototype-build.yml",
     "scripts/check_workflow.py",
 )
 
@@ -238,6 +239,31 @@ def validate_workflow(text: str, report: Report) -> None:
     for token in ("npm ", "pip ", "pip3", "curl ", "wget ", "apt-get", "docker "):
         if token in flat:
             report.error(f"workflow must not install or fetch dependencies ({token.strip()})")
+
+
+def validate_build_workflow(text: str, report: Report) -> None:
+    forbidden = ("pull_request_target", "secrets.", "workflow_run:")
+    for token in forbidden:
+        if token in text:
+            report.error(f"prototype build workflow must not contain {token}")
+    required = (
+        "permissions:",
+        "contents: read",
+        "runs-on: macos-latest",
+        "runs-on: ubuntu-latest",
+        "actions/checkout@v4",
+        "CODE_SIGNING_ALLOWED=NO",
+        "arduino:renesas_uno@1.6.0",
+        "ArduinoBLE@2.1.0",
+        "28a8e119c498a25607821c36cb2dc49e8463941b261a0d99091baa7bc692dd2b",
+        "generic/platform=iOS",
+        "arduino:renesas_uno:unor4wifi",
+    )
+    for item in required:
+        if item not in text:
+            report.error(f"prototype build workflow is missing {item}")
+    if text.count("uses: actions/checkout@v4") != 2:
+        report.error("prototype build workflow must check out once per job and use no other action")
 
 
 def split_front_matter(text: str) -> tuple[str, str]:
@@ -490,6 +516,9 @@ def main(argv: list[str]) -> int:
     workflow = ROOT / ".github/workflows/workflow-check.yml"
     if workflow.is_file():
         validate_workflow(workflow.read_text(encoding="utf-8"), report)
+    build_workflow = ROOT / ".github/workflows/prototype-build.yml"
+    if build_workflow.is_file():
+        validate_build_workflow(build_workflow.read_text(encoding="utf-8"), report)
     issue = ROOT / ".github/ISSUE_TEMPLATE/task.md"
     if issue.is_file():
         validate_issue_template(issue.read_text(encoding="utf-8"), report)

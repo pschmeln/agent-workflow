@@ -17,11 +17,11 @@
 static BLEService caneService("8f3a1c20-7b6e-4d5a-9c11-6e2f0a9b1001");
 static BLECharacteristic commandCharacteristic(
     "8f3a1c20-7b6e-4d5a-9c11-6e2f0a9b1002",
-    BLEWrite | BLEWriteWithoutResponse,
+    static_cast<uint16_t>(BLEWrite | BLEWriteWithoutResponse),
     CANE_PACKET_BYTES);
 static BLECharacteristic statusCharacteristic(
     "8f3a1c20-7b6e-4d5a-9c11-6e2f0a9b1003",
-    BLERead | BLENotify,
+    static_cast<uint16_t>(BLERead | BLENotify),
     CANE_STATUS_BYTES);
 
 static cane_link_t link;
@@ -67,7 +67,7 @@ static void apply_outputs(uint32_t now_ms) {
         uint8_t status[CANE_STATUS_BYTES];
         uint32_t sequence = link.have_valid ? link.command.sequence : 0u;
         cane_status_encode(&out, sequence, status);
-        statusCharacteristic.writeValue(status, CANE_STATUS_BYTES);
+        statusCharacteristic.writeValue(status, static_cast<int>(CANE_STATUS_BYTES));
         last_status_ms = now_ms;
     }
 }

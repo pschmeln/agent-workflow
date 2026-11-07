@@ -23,11 +23,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>The supervised demo connects as a Bluetooth central to the cane controller to send claim packets and read controller status.</string>
+	<string>This iPhone connects as a Bluetooth central to the cane controller. It sends claim packets and reads controller status on the phone. Bluetooth is not a connection to a cloud service.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>The supervised demo uses the rear camera for ARKit tracking and the debug preview. The camera image is not converted into an obstacle distance.</string>
+	<string>This iPhone uses the rear camera for local ARKit tracking and the debug preview. Video stays on the phone and is not sent to a server. The image is not converted into an obstacle distance.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>ARKit uses motion sensors for visual-inertial camera tracking. Motion is not turned into an obstacle speed.</string>
+	<string>ARKit uses this iPhone's motion sensors for local visual-inertial camera tracking. Motion stays on the phone and is not turned into an obstacle speed.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

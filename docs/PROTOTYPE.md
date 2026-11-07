@@ -4,6 +4,8 @@ This is a controlled demo for MakeUC Hackathon 2026. A sighted supervisor wears 
 
 The phone warns with uncertainty. It does not invent a safe path. A quiet hazard channel is not an all-clear.
 
+At runtime the path is the iPhone 16, then Bluetooth LE, then the UNO R4 WiFi, then the four actuator drivers. The phone processes the camera and motion on the device. No laptop and no cloud service infer a hazard. GitHub Actions can compile the unsigned app and the sketch. That compile job is not part of the running demo.
+
 ## Fixed demo requirements
 
 - The phone is body-mounted. This repository does not design the mount.
@@ -24,7 +26,7 @@ No monocular depth network is bundled. A relative-depth model would not be an ho
 
 The app can raycast the center of the frame against ARKit's existing detected planes ([planeDetection](https://developer.apple.com/documentation/arkit/arworldtrackingconfiguration/planedetection-swift.struct)). A hit is the distance from the current camera pose to that plane, shown as context. It does not raise a hazard and it is not a clearance. No hit stays unknown. Plane detection on this iPhone was not run here.
 
-The UNO R4 WiFi uses a Renesas RA4M1 for the headers and an ESP32-S3-MINI-1-N8 for wireless. The [datasheet](https://docs.arduino.cc/resources/datasheets/ABX00087-datasheet.pdf) says the RA4M1 GPIOs can safely handle up to 8 mA, and that higher-current devices such as servo motors need an external supply. The [cheat sheet](https://docs.arduino.cc/tutorials/uno-r4-wifi/cheat-sheet) says the ESP32-S3 provides Bluetooth LE and Wi-Fi, and that those radios share one antenna, so they are not used at the same time. [ArduinoBLE](https://docs.arduino.cc/libraries/arduinoble/) documents peripheral and central modes and names the UNO R4 WiFi. The library README requires ESP32-S3 firmware 0.2.0 or newer for that board. This firmware is a BLE peripheral only. It does not join Wi-Fi. The iPhone is the BLE central through [Core Bluetooth](https://developer.apple.com/documentation/corebluetooth).
+The UNO R4 WiFi uses a Renesas RA4M1 for the headers and an ESP32-S3-MINI-1-N8 for wireless. The [datasheet](https://docs.arduino.cc/resources/datasheets/ABX00087-datasheet.pdf) says the RA4M1 GPIOs can safely handle up to 8 mA, and that higher-current devices such as servo motors need an external supply. The [cheat sheet](https://docs.arduino.cc/tutorials/uno-r4-wifi/cheat-sheet) says the ESP32-S3 provides Bluetooth LE and Wi-Fi, and that those radios share one antenna, so they are not used at the same time. [ArduinoBLE](https://docs.arduino.cc/libraries/arduinoble/) 2.1.0 documents peripheral and central modes and names the UNO R4 WiFi. Its README says that board needs ESP32-S3 firmware 0.2.0 or newer. The compile job pins Arduino core `arduino:renesas_uno` 1.6.0, whose `unor4wifi` board id is the UNO R4 WiFi. This firmware is a BLE peripheral only. It does not call the Wi-Fi API. The board package still compiles its WiFiS3 library while building ArduinoBLE for this board. That compile dependency is not a second radio session. The iPhone is the BLE central through [Core Bluetooth](https://developer.apple.com/documentation/corebluetooth).
 
 ## Camera path and simulation path
 
@@ -32,7 +34,7 @@ Every outgoing packet has one source.
 
 The camera path can report tracking, an ARKit camera step, and an optional plane-hit context. Its hazard claim is always "no claim", and its route cue is always none. If camera permission, world tracking, or normal tracking is missing, the system-unavailable channel is on. Missing scene depth does not by itself mean unavailable, and it also does not create a distance.
 
-The simulation path is a separate control on the phone. It can request an elevated hazard, a system-unavailable cue, and a demo left or right label. The screen says the input is simulated. Those controls do not read the camera. The shared encoder rejects a camera-sourced hazard or a camera-sourced route cue, so a buggy packet of that shape does not move the actuators.
+The simulation path is a separate bench control on the phone. It can request the D2 hazard actuator, the D3 unavailable actuator, and a D4 left or right label. The screen says the input is simulated. Those controls do not read the camera and do not mean an obstacle was detected. The shared encoder rejects a camera-sourced hazard or a camera-sourced route cue, so a buggy packet of that shape does not move the actuators.
 
 There is no random left or right choice. Nothing in the camera path picks a direction.
 
@@ -95,35 +97,46 @@ The phone timer asks to send about ten times a second. That is the timer interva
 - BLE pairing.
 - An iOS binary or a flashed board. This environment has no Xcode and no Arduino toolchain.
 
-## Checks that were run here
+## Checks
 
-From the repository root:
+Host logic tests, from a machine with a C compiler:
 
 ```bash
 make -C prototype test
 python3 scripts/check_workflow.py
 ```
 
-`make` compiles `cane_logic.c` with the host C compiler and runs [test_cane.c](../prototype/tests/test_cane.c). Those tests do not open a camera, a radio, or a GPIO. They do not pass if they are described as an iOS or hardware result.
+`make` compiles `cane_logic.c` and runs [test_cane.c](../prototype/tests/test_cane.c). Those tests do not open a camera, a radio, or a GPIO.
 
-## Build the iPhone app
+[prototype-build.yml](../.github/workflows/prototype-build.yml) adds two cloud compile jobs. They use the repository contents only. They do not use a signing certificate, an Apple team, or a secret.
 
-Use a Mac with Xcode 16 or newer and an iOS 18 SDK.
+- Unsigned iOS compile: a GitHub-hosted `macos-latest` runner runs `xcodebuild` with code signing disabled. A successful log means the sources compiled. It does not produce an app that can be installed on the iPhone.
+- UNO R4 WiFi compile: a GitHub-hosted `ubuntu-latest` runner installs Arduino CLI 1.5.1, core `arduino:renesas_uno` 1.6.0, and ArduinoBLE 2.1.0, then compiles the sketch for `arduino:renesas_uno:unor4wifi`. A successful log means the sketch compiled. It does not flash the board.
 
-1. Open [CaneDemo.xcodeproj](../prototype/ios/CaneDemo/CaneDemo.xcodeproj/project.pbxproj) in Xcode.
-2. Select the CaneDemo target, then Signing & Capabilities. Choose your Apple ID team. The project does not contain a team id.
-3. Change the bundle id `com.makeuc2026.canedemo` if your team cannot use it.
-4. Connect the standard iPhone 16, trust the computer, and enable Developer Mode.
-5. Run on that device. The simulator does not stand in for this phone's camera, motion, or a BLE peripheral.
-6. Confirm the debug screen. On a standard iPhone 16, scene depth support should read no. If it reads yes, stop and treat the device as the wrong model. This build still does not enable scene depth.
+## Build without owning a Mac
+
+The unsigned iOS job is the compile check for someone who does not have a Mac. Watch that job on the pull request. A green result is a compile result. Copying the runner's build products to the phone will not install them, because the phone requires a signature from an Apple development team.
+
+Installing the app on the iPhone 16 is a separate human step:
+
+1. A person with a Mac and Xcode opens [CaneDemo.xcodeproj](../prototype/ios/CaneDemo/CaneDemo.xcodeproj/project.pbxproj).
+2. In Signing & Capabilities, that person selects their own Apple team. This repository has no team id, certificate, or provisioning profile.
+3. They change `com.makeuc2026.canedemo` if their team cannot use that bundle id.
+4. They connect the standard iPhone 16, trust the computer, and enable Developer Mode.
+5. They run the signed build on that phone. The iOS Simulator is not a stand-in for this phone's camera, motion, or the BLE peripheral.
+6. On the phone, scene depth support should read no. If it reads yes, the device is the wrong model. This build still does not enable scene depth.
+
+Apple Developer Program enrollment, certificate creation, and signing stay with that person. This repository does not buy or enroll an Apple account.
 
 ## Flash the UNO R4 WiFi
 
+The firmware job only compiles. Flashing is still local:
+
 1. Install Arduino IDE 2.
-2. Install the Arduino UNO R4 Boards package and select Arduino UNO R4 WiFi.
-3. Install ArduinoBLE from the Library Manager. Use a release that lists UNO R4 WiFi, and update the board so the ESP32-S3 bridge firmware is 0.2.0 or newer if the board package asks.
+2. Install the Arduino UNO R4 Boards package at 1.6.0, or a newer package you choose after reading its notes, and select Arduino UNO R4 WiFi.
+3. Install ArduinoBLE 2.1.0. The library lists this board and asks for ESP32-S3 firmware 0.2.0 or newer. Let the board package update that bridge firmware if it offers to.
 4. Open [uno_r4_wifi.ino](../prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino) and upload it.
-5. Open Serial Monitor at 115200. Before the phone connects, the log should show the link outage pattern. The sketch was not compiled in this environment.
+5. Open Serial Monitor at 115200. Before the phone connects, the log should show the link outage pattern.
 
 ## Supervised demo
 

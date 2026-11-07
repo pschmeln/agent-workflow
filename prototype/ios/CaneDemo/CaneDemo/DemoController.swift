@@ -1,5 +1,6 @@
 import ARKit
 import AVFoundation
+import Combine
 import CoreBluetooth
 import Foundation
 import simd
@@ -125,8 +126,8 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
 
     private func currentInput() -> cane_input_t {
         var input = cane_input_t(
-            source: sourceIsSimulation ? CANE_SOURCE_SIMULATION : CANE_SOURCE_CAMERA,
-            tracking: tracking,
+            source: Int32(sourceIsSimulation ? CANE_SOURCE_SIMULATION : CANE_SOURCE_CAMERA),
+            tracking: Int32(tracking),
             camera_authorized: Int32(cameraAuthorized ? 1 : 0),
             world_tracking_supported: Int32(worldTrackingSupported ? 1 : 0),
             scene_depth_supported: Int32(sceneDepthSupported ? 1 : 0),
@@ -134,12 +135,12 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
             plane_hit_meters: 0,
             simulation_elevated_hazard: 0,
             simulation_unavailable: 0,
-            route_cue: CANE_ROUTE_NONE
+            route_cue: Int32(CANE_ROUTE_NONE)
         )
         if sourceIsSimulation {
             input.simulation_elevated_hazard = Int32(simulatedHazard ? 1 : 0)
             input.simulation_unavailable = Int32(simulatedUnavailable ? 1 : 0)
-            input.route_cue = simulatedRoute
+            input.route_cue = Int32(simulatedRoute)
         } else {
             input.has_plane_hit = Int32(hasPlaneHit ? 1 : 0)
             input.plane_hit_meters = planeHitMeters
@@ -148,14 +149,14 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
     }
 
     private func describe(_ assessment: cane_assessment_t) -> String {
-        let source = assessment.source == CANE_SOURCE_SIMULATION ? "Simulation" : "Camera pipeline"
-        let hazard = assessment.hazard == CANE_HAZARD_ELEVATED ? "Elevated hazard claim" : "No hazard claim"
+        let source = assessment.source == Int32(CANE_SOURCE_SIMULATION) ? "Simulation" : "Camera pipeline"
+        let hazard = assessment.hazard == Int32(CANE_HAZARD_ELEVATED) ? "Elevated hazard claim" : "No hazard claim"
         let availability = assessment.system_unavailable == 1 ? "System unavailable" : "Pipeline running"
         let route: String
         switch assessment.route_cue {
-        case CANE_ROUTE_DEMO_LEFT:
+        case Int32(CANE_ROUTE_DEMO_LEFT):
             route = "Demo route cue: left label"
-        case CANE_ROUTE_DEMO_RIGHT:
+        case Int32(CANE_ROUTE_DEMO_RIGHT):
             route = "Demo route cue: right label"
         default:
             route = "No route cue"
@@ -179,7 +180,7 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let state = frame.camera.trackingState
-        let code: Int32
+        let code: Int
         let label: String
         switch state {
         case .normal:
@@ -227,8 +228,8 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
         var planeValid = false
         var planeMeters: Float = 0
         var planeLabel = "No existing-plane hit"
-        if let query = frame.raycastQuery(from: CGPoint(x: 0.5, y: 0.5), allowing: .existingPlaneGeometry, alignment: .any) {
-            if let hit = session.raycast(query).first {
+        let query = frame.raycastQuery(from: CGPoint(x: 0.5, y: 0.5), allowing: .existingPlaneGeometry, alignment: .any)
+        if let hit = session.raycast(query).first {
                 let hitPosition = SIMD3<Float>(
                     hit.worldTransform.columns.3.x,
                     hit.worldTransform.columns.3.y,
@@ -238,7 +239,6 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
                 planeValid = true
                 planeMeters = step
                 planeLabel = String(format: "Existing-plane hit %.2f m from the camera pose. Not obstacle clearance.", step)
-            }
         }
 
         DispatchQueue.main.async { [weak self] in
@@ -339,7 +339,7 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
             boardText = "Controller status failed the shared decoder"
             return
         }
-        let link = status.link_state == CANE_LINK_OUTAGE ? "link outage" : "link heartbeat"
+        let link = status.link_state == Int32(CANE_LINK_OUTAGE) ? "link outage" : "link heartbeat"
         boardText = "\(link). sequence \(status.last_sequence). pins hazard \(status.hazard_on) unavailable \(status.unavailable_on) route \(status.route_on) link \(status.link_on)"
     }
 

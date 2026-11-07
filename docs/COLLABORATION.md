@@ -58,7 +58,7 @@ Keep each pull request to one task. A reviewer should be able to check the diff 
 
 GitHub fills in [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) for new pull requests once the template is on the default branch, `main`.
 
-In the pull request, name the review steps and the command you ran. The automated check validates these workflow files and runs the host cane-logic tests. It does not compile the iOS app, flash the board, or certify the demo as safe.
+In the pull request, name the review steps and the command you ran. One job validates these workflow files and runs the host cane-logic tests. Another job compiles the unsigned iOS app and the UNO R4 WiFi sketch. Those jobs do not sign, install, or flash anything, and they do not certify the demo as safe. Runtime video stays on the phone.
 
 The author opens the pull request and stops. A human merges. Prefer approval from a human who did not author the change. When the other person is unavailable, the repository owner may merge and records that on the pull request. An agent is not an approver.
 
@@ -133,7 +133,8 @@ Issue and pull request template behavior is documented in [About issue and pull 
 - [`.github/ISSUE_TEMPLATE/task.md`](../.github/ISSUE_TEMPLATE/task.md) for a task.
 - [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) for a pull request.
 - [`scripts/check_workflow.py`](../scripts/check_workflow.py) checks these files, local links, the Claude Code import, and the workflow syntax this repo can parse without added packages.
-- [`.github/workflows/workflow-check.yml`](../.github/workflows/workflow-check.yml) runs that script, then `make -C prototype test`, with Python 3 and a C compiler already on the GitHub-hosted runner and GitHub's `actions/checkout` action at major version 4. The workflow installs nothing and reads no secrets.
+- [`.github/workflows/workflow-check.yml`](../.github/workflows/workflow-check.yml) runs that script, then `make -C prototype test`, with Python 3 and a C compiler already on the GitHub-hosted runner and GitHub's `actions/checkout` action at major version 4. That workflow installs nothing and reads no secrets.
+- [`.github/workflows/prototype-build.yml`](../.github/workflows/prototype-build.yml) compiles the unsigned iPhone app on a GitHub-hosted Mac and compiles the UNO R4 WiFi sketch on Linux. It reads repository contents only. It does not sign or install the app.
 
 After changing any of these files, run this from the repository root:
 
