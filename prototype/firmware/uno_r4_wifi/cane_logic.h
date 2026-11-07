@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Shared claim, packet, and actuator-output logic for the supervised demo.
  * Obstacle distance, speed, and time-to-contact are not represented.
@@ -163,5 +167,9 @@ int cane_status_encode(
 int cane_status_decode(const uint8_t *bytes, size_t len, cane_status_t *status);
 
 int cane_pulse(uint32_t now_ms, uint32_t period_ms, uint32_t on_ms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
