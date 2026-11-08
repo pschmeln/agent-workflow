@@ -4,10 +4,12 @@
  * Wi-Fi is not started. Arduino documents that the ESP32-S3 antenna
  * is shared, so this sketch uses Bluetooth LE only.
  *
- * D2-D5 are 5 V logic enables for external actuator drivers.
- * The UNO R4 WiFi datasheet says each RA4M1 GPIO can safely handle
- * up to 8 mA. Do not connect a motor, solenoid, or vibration puck
- * directly to a GPIO. See docs/PROTOTYPE.md.
+ * D2 is the left Grove socket and D4 is the right Grove socket.
+ * D3 is an internal status output. D5 is the link indicator.
+ * Do not put a third buzzer on D3 or D5.
+ * Confirm the Grove Buzzer module's SIG pin is a logic input before
+ * connecting it. Do not power a bare motor from a GPIO.
+ * See docs/WEB_DEMO.md.
  */
 
 #include <ArduinoBLE.h>
@@ -55,12 +57,12 @@ static void print_outputs(uint32_t now_ms, const cane_outputs_t *out) {
     Serial.print(source_name(link.command.source));
     Serial.print(" link=");
     Serial.print(out->link_state == CANE_LINK_OUTAGE ? "outage" : "heartbeat");
-    Serial.print(" pins hazard=");
-    Serial.print(out->hazard);
-    Serial.print(" unavailable=");
-    Serial.print(out->unavailable);
-    Serial.print(" route=");
-    Serial.print(out->route);
+    Serial.print(" pins left=");
+    Serial.print(out->left);
+    Serial.print(" right=");
+    Serial.print(out->right);
+    Serial.print(" status=");
+    Serial.print(out->status);
     Serial.print(" linkpin=");
     Serial.println(out->link);
 }
@@ -68,12 +70,12 @@ static void print_outputs(uint32_t now_ms, const cane_outputs_t *out) {
 static void apply_outputs(uint32_t now_ms) {
     cane_outputs_t out;
     cane_link_outputs(&link, now_ms, &out);
-    digitalWrite(CANE_PIN_HAZARD, out.hazard ? HIGH : LOW);
-    digitalWrite(CANE_PIN_UNAVAILABLE, out.unavailable ? HIGH : LOW);
-    digitalWrite(CANE_PIN_ROUTE, out.route ? HIGH : LOW);
+    digitalWrite(CANE_PIN_LEFT, out.left ? HIGH : LOW);
+    digitalWrite(CANE_PIN_STATUS, out.status ? HIGH : LOW);
+    digitalWrite(CANE_PIN_RIGHT, out.right ? HIGH : LOW);
     digitalWrite(CANE_PIN_LINK, out.link ? HIGH : LOW);
-    if (!have_previous || out.hazard != previous.hazard || out.unavailable != previous.unavailable ||
-        out.route != previous.route || out.link_state != previous.link_state) {
+    if (!have_previous || out.left != previous.left || out.right != previous.right ||
+        out.status != previous.status || out.link_state != previous.link_state) {
         print_outputs(now_ms, &out);
         previous = out;
         have_previous = 1;
@@ -88,14 +90,14 @@ static void apply_outputs(uint32_t now_ms) {
 }
 
 void setup() {
-    set_pin_low(CANE_PIN_HAZARD);
-    set_pin_low(CANE_PIN_UNAVAILABLE);
-    set_pin_low(CANE_PIN_ROUTE);
+    set_pin_low(CANE_PIN_LEFT);
+    set_pin_low(CANE_PIN_STATUS);
+    set_pin_low(CANE_PIN_RIGHT);
     set_pin_low(CANE_PIN_LINK);
     cane_link_init(&link);
     Serial.begin(115200);
     Serial.println("Cane demo controller");
-    Serial.println("Logic outputs only: D2 hazard, D3 unavailable, D4 route demo, D5 link.");
+    Serial.println("D2 left buzzer, D4 right buzzer, D3 status logic, D5 link logic.");
     Serial.println("No packet yet, so the link output uses the outage pattern.");
 
     if (!BLE.begin()) {

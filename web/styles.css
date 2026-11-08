@@ -50,6 +50,7 @@ video, canvas {
   width: 100%;
   height: auto;
   display: block;
+  transform: none;
 }
 
 canvas {

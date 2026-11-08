@@ -10,9 +10,6 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
     let session = ARSession()
 
     @Published var sourceIsSimulation = false
-    @Published var simulatedHazard = false
-    @Published var simulatedUnavailable = false
-    @Published var simulatedRoute = CANE_ROUTE_NONE
 
     @Published var cameraAuthorized = false
     @Published var worldTrackingSupported = false
@@ -95,11 +92,6 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
 
     func setSource(simulation: Bool) {
         sourceIsSimulation = simulation
-        if !simulation {
-            simulatedHazard = false
-            simulatedUnavailable = false
-            simulatedRoute = CANE_ROUTE_NONE
-        }
         refreshClaim()
     }
 
@@ -133,17 +125,12 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
             scene_depth_supported: Int32(sceneDepthSupported ? 1 : 0),
             has_plane_hit: 0,
             plane_hit_meters: 0,
-            simulation_elevated_hazard: 0,
+            simulation_sides: 0,
             simulation_unavailable: 0,
-            route_cue: Int32(CANE_ROUTE_NONE),
-            image_heuristic_elevated: 0,
+            image_sides: 0,
             image_pipeline_ready: 0
         )
-        if sourceIsSimulation {
-            input.simulation_elevated_hazard = Int32(simulatedHazard ? 1 : 0)
-            input.simulation_unavailable = Int32(simulatedUnavailable ? 1 : 0)
-            input.route_cue = Int32(simulatedRoute)
-        } else {
+        if !sourceIsSimulation {
             input.has_plane_hit = Int32(hasPlaneHit ? 1 : 0)
             input.plane_hit_meters = planeHitMeters
         }
@@ -152,18 +139,8 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
 
     private func describe(_ assessment: cane_assessment_t) -> String {
         let source = assessment.source == Int32(CANE_SOURCE_SIMULATION) ? "Simulation" : "Camera pipeline"
-        let hazard = assessment.hazard == Int32(CANE_HAZARD_ELEVATED) ? "Elevated hazard claim" : "No hazard claim"
         let availability = assessment.system_unavailable == 1 ? "System unavailable" : "Pipeline running"
-        let route: String
-        switch assessment.route_cue {
-        case Int32(CANE_ROUTE_DEMO_LEFT):
-            route = "Demo route cue: left label"
-        case Int32(CANE_ROUTE_DEMO_RIGHT):
-            route = "Demo route cue: right label"
-        default:
-            route = "No route cue"
-        }
-        return "\(source). \(hazard). \(availability). \(route). This is not an all-clear."
+        return "\(source). Sides \(assessment.sides). \(availability). This native build does not command the left or right buzzer. This is not an all-clear."
     }
 
     private func sendLatest() {
@@ -342,7 +319,7 @@ final class DemoController: NSObject, ObservableObject, ARSessionDelegate, CBCen
             return
         }
         let link = status.link_state == Int32(CANE_LINK_OUTAGE) ? "link outage" : "link heartbeat"
-        boardText = "\(link). sequence \(status.last_sequence). pins hazard \(status.hazard_on) unavailable \(status.unavailable_on) route \(status.route_on) link \(status.link_on)"
+        boardText = "\(link). sequence \(status.last_sequence). pins left \(status.left_on) right \(status.right_on) status \(status.status_on) link \(status.link_on)"
     }
 
     private func reasonText(_ reason: ARCamera.TrackingState.Reason) -> String {

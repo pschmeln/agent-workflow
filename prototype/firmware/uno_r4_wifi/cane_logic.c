@@ -71,43 +71,42 @@ static void record_plane(const cane_input_t *in, cane_assessment_t *out) {
     }
 }
 
+static int side_bits(int sides) {
+    return sides & (int)(CANE_SIDE_LEFT | CANE_SIDE_RIGHT);
+}
+
 void cane_assess(const cane_input_t *in, cane_assessment_t *out) {
     out->source = in->source;
     out->tracking = in->tracking;
     out->scene_depth_supported = in->scene_depth_supported ? 1 : 0;
-    out->hazard = CANE_HAZARD_NO_CLAIM;
+    out->sides = 0;
     out->system_unavailable = 1;
-    out->route_cue = CANE_ROUTE_NONE;
     record_plane(in, out);
 
     if (in->source == CANE_SOURCE_CAMERA) {
         int pipeline_ready = in->camera_authorized && in->world_tracking_supported &&
                              in->tracking == CANE_TRACKING_NORMAL;
         out->system_unavailable = pipeline_ready ? 0 : 1;
-        out->hazard = CANE_HAZARD_NO_CLAIM;
-        out->route_cue = CANE_ROUTE_NONE;
+        out->sides = 0;
         return;
     }
 
     if (in->source == CANE_SOURCE_IMAGE_HEURISTIC) {
         clear_plane(out);
-        out->route_cue = CANE_ROUTE_NONE;
         if (!in->image_pipeline_ready) {
             out->system_unavailable = 1;
-            out->hazard = CANE_HAZARD_NO_CLAIM;
+            out->sides = 0;
             return;
         }
         out->system_unavailable = 0;
-        out->hazard = in->image_heuristic_elevated ? CANE_HAZARD_ELEVATED : CANE_HAZARD_NO_CLAIM;
+        out->sides = side_bits(in->image_sides);
         return;
     }
 
     if (in->source == CANE_SOURCE_SIMULATION) {
-        out->hazard = in->simulation_elevated_hazard ? CANE_HAZARD_ELEVATED : CANE_HAZARD_NO_CLAIM;
+        clear_plane(out);
         out->system_unavailable = in->simulation_unavailable ? 1 : 0;
-        if (in->route_cue == CANE_ROUTE_DEMO_LEFT || in->route_cue == CANE_ROUTE_DEMO_RIGHT) {
-            out->route_cue = in->route_cue;
-        }
+        out->sides = in->simulation_unavailable ? 0 : side_bits(in->simulation_sides);
     }
 }
 
@@ -150,9 +149,8 @@ void cane_command_from_assessment(
     uint16_t time_ms_low,
     cane_command_t *command) {
     command->source = assessment->source;
-    command->hazard = assessment->hazard;
+    command->sides = side_bits(assessment->sides);
     command->system_unavailable = assessment->system_unavailable ? 1 : 0;
-    command->route_cue = assessment->route_cue;
     command->tracking = assessment->tracking;
     command->scene_depth_supported = assessment->scene_depth_supported ? 1 : 0;
     command->plane_hit_cm = assessment->plane_hit_valid ? assessment->plane_hit_cm : CANE_PLANE_CM_NONE;
@@ -165,26 +163,20 @@ int cane_command_admissible(const cane_command_t *command) {
         command->source != CANE_SOURCE_IMAGE_HEURISTIC) {
         return 0;
     }
-    if (command->hazard != CANE_HAZARD_NO_CLAIM && command->hazard != CANE_HAZARD_ELEVATED) {
+    if ((command->sides & ~(int)(CANE_SIDE_LEFT | CANE_SIDE_RIGHT)) != 0) {
         return 0;
     }
     if (command->system_unavailable != 0 && command->system_unavailable != 1) {
         return 0;
     }
-    if (command->route_cue != CANE_ROUTE_NONE && command->route_cue != CANE_ROUTE_DEMO_LEFT &&
-        command->route_cue != CANE_ROUTE_DEMO_RIGHT) {
-        return 0;
-    }
     if (command->tracking < CANE_TRACKING_UNSUPPORTED || command->tracking > CANE_TRACKING_NORMAL) {
         return 0;
     }
-    if (command->source == CANE_SOURCE_CAMERA) {
-        if (command->hazard != CANE_HAZARD_NO_CLAIM || command->route_cue != CANE_ROUTE_NONE) {
-            return 0;
-        }
+    if (command->source == CANE_SOURCE_CAMERA && command->sides != 0) {
+        return 0;
     }
-    if (command->source == CANE_SOURCE_IMAGE_HEURISTIC) {
-        if (command->route_cue != CANE_ROUTE_NONE || command->plane_hit_cm != CANE_PLANE_CM_NONE) {
+    if (command->source == CANE_SOURCE_IMAGE_HEURISTIC || command->source == CANE_SOURCE_SIMULATION) {
+        if (command->plane_hit_cm != CANE_PLANE_CM_NONE) {
             return 0;
         }
     }
@@ -198,9 +190,9 @@ int cane_command_encode(const cane_command_t *command, uint8_t out[CANE_PACKET_B
     }
     out[0] = CANE_PACKET_VERSION;
     out[1] = (uint8_t)command->source;
-    out[2] = (uint8_t)command->hazard;
+    out[2] = (uint8_t)command->sides;
     out[3] = (uint8_t)command->system_unavailable;
-    out[4] = (uint8_t)command->route_cue;
+    out[4] = 0;
     out[5] = (uint8_t)command->tracking;
     out[6] = command->scene_depth_supported ? 1u : 0u;
     out[7] = 0;
@@ -215,7 +207,7 @@ int cane_command_encode(const cane_command_t *command, uint8_t out[CANE_PACKET_B
 int cane_command_decode(const uint8_t *bytes, size_t len, cane_command_t *command) {
     uint16_t expected;
     uint16_t actual;
-    if (len != CANE_PACKET_BYTES || bytes[0] != CANE_PACKET_VERSION || bytes[7] != 0) {
+    if (len != CANE_PACKET_BYTES || bytes[0] != CANE_PACKET_VERSION || bytes[4] != 0 || bytes[7] != 0) {
         return 0;
     }
     expected = cane_crc16(bytes, 16);
@@ -224,9 +216,8 @@ int cane_command_decode(const uint8_t *bytes, size_t len, cane_command_t *comman
         return 0;
     }
     command->source = bytes[1];
-    command->hazard = bytes[2];
+    command->sides = bytes[2];
     command->system_unavailable = bytes[3];
-    command->route_cue = bytes[4];
     command->tracking = bytes[5];
     command->scene_depth_supported = bytes[6] ? 1 : 0;
     command->sequence = read_le32(&bytes[8]);
@@ -239,9 +230,8 @@ void cane_link_init(cane_link_t *link) {
     link->last_valid_ms = 0;
     link->have_valid = 0;
     link->command.source = CANE_SOURCE_CAMERA;
-    link->command.hazard = CANE_HAZARD_NO_CLAIM;
+    link->command.sides = 0;
     link->command.system_unavailable = 1;
-    link->command.route_cue = CANE_ROUTE_NONE;
     link->command.tracking = CANE_TRACKING_UNAVAILABLE;
     link->command.scene_depth_supported = 0;
     link->command.plane_hit_cm = CANE_PLANE_CM_NONE;
@@ -258,6 +248,11 @@ int cane_link_accept(cane_link_t *link, const uint8_t *bytes, size_t len, uint32
     link->have_valid = 1;
     link->last_valid_ms = now_ms;
     return 1;
+}
+
+int cane_fault_blip(uint32_t now_ms) {
+    uint32_t phase = now_ms % CANE_FAULT_PERIOD_MS;
+    return phase < 80u || (phase >= 160u && phase < 240u);
 }
 
 int cane_pulse(uint32_t now_ms, uint32_t period_ms, uint32_t on_ms) {
@@ -282,17 +277,23 @@ void cane_link_outputs(const cane_link_t *link, uint32_t now_ms, cane_outputs_t 
         outage ? CANE_LINK_OUT_PERIOD_MS : CANE_LINK_OK_PERIOD_MS,
         outage ? CANE_LINK_OUT_ON_MS : CANE_LINK_OK_ON_MS);
     if (outage) {
-        out->hazard = 0;
-        out->unavailable = 0;
-        out->route = 0;
+        out->left = 0;
+        out->right = 0;
+        out->status = 0;
         return;
     }
-    out->hazard = link->command.hazard == CANE_HAZARD_ELEVATED &&
-                  cane_pulse(now_ms, CANE_HAZARD_PERIOD_MS, CANE_HAZARD_ON_MS);
-    out->unavailable = link->command.system_unavailable &&
-                       cane_pulse(now_ms, CANE_UNAVAILABLE_PERIOD_MS, CANE_UNAVAILABLE_ON_MS);
-    out->route = link->command.route_cue != CANE_ROUTE_NONE &&
-                 cane_pulse(now_ms, CANE_ROUTE_PERIOD_MS, CANE_ROUTE_ON_MS);
+    if (link->command.system_unavailable) {
+        int blip = cane_fault_blip(now_ms);
+        out->left = blip;
+        out->right = blip;
+        out->status = 1;
+        return;
+    }
+    out->status = 0;
+    out->left = (link->command.sides & CANE_SIDE_LEFT) &&
+                cane_pulse(now_ms, CANE_OBJECT_PERIOD_MS, CANE_OBJECT_ON_MS);
+    out->right = (link->command.sides & CANE_SIDE_RIGHT) &&
+                 cane_pulse(now_ms, CANE_OBJECT_PERIOD_MS, CANE_OBJECT_ON_MS);
 }
 
 int cane_status_encode(
@@ -301,7 +302,7 @@ int cane_status_encode(
     uint8_t bytes[CANE_STATUS_BYTES]) {
     bytes[0] = CANE_PACKET_VERSION;
     bytes[1] = (uint8_t)out->link_state;
-    bytes[2] = (uint8_t)((out->hazard ? 1u : 0u) | (out->unavailable ? 2u : 0u) | (out->route ? 4u : 0u) |
+    bytes[2] = (uint8_t)((out->left ? 1u : 0u) | (out->right ? 2u : 0u) | (out->status ? 4u : 0u) |
                          (out->link ? 8u : 0u));
     bytes[3] = 0;
     write_le32(&bytes[4], last_sequence);
@@ -316,9 +317,9 @@ int cane_status_decode(const uint8_t *bytes, size_t len, cane_status_t *status) 
         return 0;
     }
     status->link_state = bytes[1];
-    status->hazard_on = (bytes[2] & 1u) != 0;
-    status->unavailable_on = (bytes[2] & 2u) != 0;
-    status->route_on = (bytes[2] & 4u) != 0;
+    status->left_on = (bytes[2] & 1u) != 0;
+    status->right_on = (bytes[2] & 2u) != 0;
+    status->status_on = (bytes[2] & 4u) != 0;
     status->link_on = (bytes[2] & 8u) != 0;
     status->last_sequence = read_le32(&bytes[4]);
     return 1;

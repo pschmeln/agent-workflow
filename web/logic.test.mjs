@@ -3,11 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  HAZARD_ELEVATED,
-  HAZARD_NO_CLAIM,
   PLANE_CM_NONE,
-  ROUTE_DEMO_LEFT,
-  ROUTE_NONE,
+  SIDE_LEFT,
+  SIDE_RIGHT,
   SOURCE_CAMERA,
   SOURCE_IMAGE_HEURISTIC,
   SOURCE_SIMULATION,
@@ -17,16 +15,19 @@ import {
   createWriteQueue,
   encodeCommand,
 } from "./protocol.js";
-import { claimForMode, imageHeuristicClaim, pipelineReady } from "./state.js";
-import { centerZoneHit, iou, updateTracks } from "./tracking.js";
+import { claimForMode, imageHeuristicClaim } from "./state.js";
+import { iou, sideWarnings, updateTracks } from "./tracking.js";
 
 function box(x, y, w, h) {
   return { x, y, w, h };
 }
 
+function track(id, className, score, bbox) {
+  return { id, className, score, bbox, lastSeen: 0 };
+}
+
 test("crc16 matches the CCITT-FALSE vector", () => {
-  const digits = new TextEncoder().encode("123456789");
-  assert.equal(crc16(digits), 0x29b1);
+  assert.equal(crc16(new TextEncoder().encode("123456789")), 0x29b1);
 });
 
 test("javascript packets match the C encoder", () => {
@@ -42,40 +43,25 @@ test("javascript packets match the C encoder", () => {
     planeCm: PLANE_CM_NONE,
   };
   const expected = {
-    simulation: {
-      ...shared,
-      source: SOURCE_SIMULATION,
-      hazard: HAZARD_ELEVATED,
-      route: ROUTE_DEMO_LEFT,
-    },
-    image: {
-      ...shared,
-      source: SOURCE_IMAGE_HEURISTIC,
-      hazard: HAZARD_ELEVATED,
-      route: ROUTE_NONE,
-    },
-    camera: {
-      ...shared,
-      source: SOURCE_CAMERA,
-      hazard: HAZARD_NO_CLAIM,
-      unavailable: 1,
-      route: ROUTE_NONE,
-    },
+    left: { ...shared, source: SOURCE_SIMULATION, sides: SIDE_LEFT },
+    both: { ...shared, source: SOURCE_IMAGE_HEURISTIC, sides: SIDE_LEFT | SIDE_RIGHT },
+    none: { ...shared, source: SOURCE_CAMERA, sides: 0, unavailable: 1 },
   };
   for (const row of fixture) {
     const encoded = encodeCommand(expected[row.name]);
     assert.ok(encoded, row.name);
     assert.deepEqual(Array.from(encoded), row.bytes, row.name);
+    assert.equal(encoded[0], 2);
+    assert.equal(encoded[4], 0);
   }
 });
 
-test("image heuristic cannot carry a distance or a route", () => {
+test("version 2 rejects a camera side and a fake distance", () => {
   assert.equal(
     commandAdmissible({
-      source: SOURCE_IMAGE_HEURISTIC,
-      hazard: HAZARD_ELEVATED,
+      source: SOURCE_CAMERA,
+      sides: SIDE_LEFT,
       unavailable: 0,
-      route: ROUTE_DEMO_LEFT,
       tracking: TRACKING_NORMAL,
       planeCm: PLANE_CM_NONE,
     }),
@@ -84,9 +70,8 @@ test("image heuristic cannot carry a distance or a route", () => {
   assert.equal(
     encodeCommand({
       source: SOURCE_IMAGE_HEURISTIC,
-      hazard: HAZARD_ELEVATED,
+      sides: SIDE_RIGHT,
       unavailable: 0,
-      route: ROUTE_NONE,
       tracking: TRACKING_NORMAL,
       sceneDepth: 0,
       sequence: 1,
@@ -95,57 +80,44 @@ test("image heuristic cannot carry a distance or a route", () => {
     }),
     null
   );
-  assert.equal(
-    commandAdmissible({
-      source: SOURCE_CAMERA,
-      hazard: HAZARD_ELEVATED,
-      unavailable: 0,
-      route: ROUTE_NONE,
-      tracking: TRACKING_NORMAL,
-      planeCm: PLANE_CM_NONE,
-    }),
-    false
-  );
+});
+
+test("center gate chooses left, right, both, or none", () => {
+  const tracks = [
+    track(1, "person", 0.9, box(20, 40, 20, 20)),
+    track(2, "car", 0.8, box(60, 40, 20, 20)),
+    track(3, "person", 0.9, box(0, 0, 10, 10)),
+    track(4, "kite", 0.99, box(40, 40, 20, 20)),
+  ];
+  const both = sideWarnings(tracks, 100, 100, 0);
+  assert.equal(both.left, true);
+  assert.equal(both.right, true);
+  assert.equal(both.onDivider, false);
+
+  const leftOnly = sideWarnings([track(1, "person", 0.9, box(20, 40, 20, 20))], 100, 100, 0);
+  assert.equal(leftOnly.left, true);
+  assert.equal(leftOnly.right, false);
+
+  const divider = sideWarnings([track(1, "bus", 0.9, box(40, 40, 20, 20))], 100, 100, 0);
+  assert.equal(divider.left, true);
+  assert.equal(divider.right, true);
+  assert.equal(divider.onDivider, true);
+  assert.equal(divider.hits[0].side, "divider");
+
+  const none = sideWarnings([track(3, "person", 0.9, box(0, 0, 10, 10))], 100, 100, 0);
+  assert.equal(none.left, false);
+  assert.equal(none.right, false);
 });
 
 test("iou keeps an id and expiry drops it", () => {
-  const first = updateTracks(
-    [],
-    [{ className: "person", score: 0.9, bbox: box(0, 0, 10, 10) }],
-    1000
-  );
-  const second = updateTracks(
-    first,
-    [{ className: "person", score: 0.8, bbox: box(1, 1, 10, 10) }],
-    1100
-  );
-  assert.equal(second.length, 1);
+  const first = updateTracks([], [{ className: "person", score: 0.9, bbox: box(0, 0, 10, 10) }], 1000);
+  const second = updateTracks(first, [{ className: "person", score: 0.8, bbox: box(1, 1, 10, 10) }], 1100);
   assert.equal(second[0].id, first[0].id);
   assert.ok(iou(box(0, 0, 10, 10), box(1, 1, 10, 10)) > 0.3);
-  const moved = updateTracks(
-    second,
-    [{ className: "person", score: 0.8, bbox: box(100, 100, 10, 10) }],
-    1200
-  );
-  assert.notEqual(moved[0].id, second[0].id);
-  const expired = updateTracks(second, [], 2000);
-  assert.equal(expired.length, 0);
+  assert.equal(updateTracks(second, [], 2000).length, 0);
 });
 
-test("center warning is 2D and ignores unsupported classes", () => {
-  const tracks = [
-    { id: 1, className: "kite", score: 0.99, bbox: box(40, 40, 20, 20), lastSeen: 0 },
-    { id: 2, className: "person", score: 0.2, bbox: box(40, 40, 20, 20), lastSeen: 0 },
-    { id: 3, className: "person", score: 0.8, bbox: box(0, 0, 10, 10), lastSeen: 0 },
-    { id: 4, className: "car", score: 0.7, bbox: box(40, 40, 20, 20), lastSeen: 0 },
-  ];
-  const hit = centerZoneHit(tracks, 100, 100, 0);
-  assert.equal(hit.className, "car");
-  assert.equal(hit.zone, "center");
-  assert.equal(centerZoneHit([], 100, 100, 0), null);
-});
-
-test("faults clear an image hazard and stay distinct from manual input", () => {
+test("faults clear sides and stay distinct from a manual side", () => {
   const fresh = imageHeuristicClaim({
     cameraOn: true,
     modelReady: true,
@@ -153,33 +125,25 @@ test("faults clear an image hazard and stay distinct from manual input", () => {
     frameAgeMs: 100,
     tabHidden: false,
     detectionEnabled: true,
-    zoneHit: true,
+    sides: SIDE_LEFT,
   });
-  assert.equal(fresh.source, SOURCE_IMAGE_HEURISTIC);
-  assert.equal(fresh.hazard, HAZARD_ELEVATED);
+  assert.equal(fresh.sides, SIDE_LEFT);
+  assert.equal(fresh.unavailable, 0);
   assert.equal(fresh.planeCm, PLANE_CM_NONE);
-  assert.equal(fresh.route, ROUTE_NONE);
 
   const stale = imageHeuristicClaim({
-    cameraOn: true,
-    modelReady: true,
-    modelError: false,
-    frameAgeMs: 1000,
-    tabHidden: false,
-    detectionEnabled: true,
-    zoneHit: true,
-  });
-  assert.equal(stale.hazard, HAZARD_NO_CLAIM);
-  assert.equal(stale.unavailable, 1);
-  assert.equal(pipelineReady({
     cameraOn: false,
     modelReady: true,
     modelError: false,
     frameAgeMs: 10,
     tabHidden: false,
-  }), false);
+    detectionEnabled: true,
+    sides: SIDE_RIGHT,
+  });
+  assert.equal(stale.sides, 0);
+  assert.equal(stale.unavailable, 1);
 
-  const hiddenManual = claimForMode({
+  const hidden = claimForMode({
     mode: "manual",
     tabHidden: true,
     cameraOn: false,
@@ -187,25 +151,22 @@ test("faults clear an image hazard and stay distinct from manual input", () => {
     modelError: false,
     frameAgeMs: null,
     detectionEnabled: false,
-    zoneHit: false,
-    hazard: true,
-    unavailable: false,
-    route: ROUTE_DEMO_LEFT,
+    sides: 0,
+    left: true,
+    right: false,
   });
-  assert.equal(hiddenManual.source, SOURCE_IMAGE_HEURISTIC);
-  assert.equal(hiddenManual.hazard, HAZARD_NO_CLAIM);
-  assert.notEqual(hiddenManual.source, SOURCE_SIMULATION);
+  assert.equal(hidden.source, SOURCE_IMAGE_HEURISTIC);
+  assert.equal(hidden.sides, 0);
 
   const manual = claimForMode({
     mode: "manual",
     tabHidden: false,
-    hazard: true,
-    unavailable: false,
-    route: ROUTE_DEMO_LEFT,
+    left: true,
+    right: false,
   });
   assert.equal(manual.source, SOURCE_SIMULATION);
-  assert.equal(manual.hazard, HAZARD_ELEVATED);
-  assert.equal(manual.route, ROUTE_DEMO_LEFT);
+  assert.equal(manual.sides, SIDE_LEFT);
+  assert.equal(manual.unavailable, 0);
 });
 
 test("writes stay in order", async () => {

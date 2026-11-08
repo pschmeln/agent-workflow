@@ -1,8 +1,9 @@
 import {
   COMMAND_UUID,
-  HAZARD_ELEVATED,
   HEARTBEAT_MS,
   SERVICE_UUID,
+  SIDE_LEFT,
+  SIDE_RIGHT,
   SOURCE_IMAGE_HEURISTIC,
   SOURCE_SIMULATION,
   STATUS_UUID,
@@ -11,7 +12,7 @@ import {
   encodeCommand,
 } from "./protocol.js";
 import { claimForMode } from "./state.js";
-import { centerZoneHit, updateTracks } from "./tracking.js";
+import { sideWarnings, updateTracks } from "./tracking.js";
 
 const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
 const COCO_URL = "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js";
@@ -29,9 +30,8 @@ const claimStatus = document.querySelector("#claim-status");
 const video = document.querySelector("#video");
 const overlay = document.querySelector("#overlay");
 const manualMode = document.querySelector("#manual-mode");
-const manualHazard = document.querySelector("#manual-hazard");
-const manualUnavailable = document.querySelector("#manual-unavailable");
-const manualRoute = document.querySelector("#manual-route");
+const manualLeft = document.querySelector("#manual-left");
+const manualRight = document.querySelector("#manual-right");
 const detectEnable = document.querySelector("#detect-enable");
 
 const state = {
@@ -43,6 +43,7 @@ const state = {
   lastFrameMs: null,
   tracks: [],
   zoneHit: null,
+  sides: 0,
   device: null,
   server: null,
   commandChar: null,
@@ -89,26 +90,43 @@ function currentClaim() {
   const mode = detectEnable.checked ? "detect" : manualMode.checked ? "manual" : "idle";
   return claimForMode({
     mode,
+    sides: state.sides,
+    left: manualLeft.checked,
+    right: manualRight.checked,
     tabHidden: document.visibilityState === "hidden",
     cameraOn: state.cameraOn,
     modelReady: state.modelReady,
     modelError: state.modelError,
     frameAgeMs,
     detectionEnabled: detectEnable.checked,
-    zoneHit: Boolean(state.zoneHit),
-    hazard: manualHazard.checked,
-    unavailable: manualUnavailable.checked,
-    route: Number(manualRoute.value),
   });
 }
 
+function sideText(sides) {
+  const left = (sides & SIDE_LEFT) !== 0;
+  const right = (sides & SIDE_RIGHT) !== 0;
+  if (left && right) {
+    return "left and right buzzers";
+  }
+  if (left) {
+    return "left buzzer";
+  }
+  if (right) {
+    return "right buzzer";
+  }
+  return "no side buzzer";
+}
+
 function describeClaim(claim) {
-  const hazard = claim.hazard === HAZARD_ELEVATED ? "elevated image or manual hazard" : "no hazard claim";
-  const availability = claim.unavailable ? "unavailable" : "pipeline running";
-  const hit = state.zoneHit
-    ? `Center box: ${state.zoneHit.className} score ${state.zoneHit.score.toFixed(2)} id ${state.zoneHit.trackId}.`
-    : "No supported class in the center zone.";
-  claimStatus.textContent = `${sourceName(claim.source)}. ${hazard}. ${availability}. ${hit} This is not an all-clear.`;
+  const availability = claim.unavailable
+    ? "not-ready double blip on both buzzers. That pattern is not objects on both sides."
+    : "side pattern follows the image or the manual switches.";
+  const hit = state.zoneHit && state.zoneHit.hits.length
+    ? state.zoneHit.onDivider
+      ? "One box center is exactly on the middle line, so both buzzers mark that one spot."
+      : `Image sides: ${sideText(state.sides)}.`
+    : "No supported class in the center half of the picture.";
+  claimStatus.textContent = `${sourceName(claim.source)}. ${sideText(claim.sides)}. ${availability} ${hit} Quiet buzzers are not an all-clear.`;
 }
 
 async function sendClaim() {
@@ -120,9 +138,8 @@ async function sendClaim() {
   state.sequence = (state.sequence + 1) >>> 0;
   const bytes = encodeCommand({
     source: claim.source,
-    hazard: claim.hazard,
+    sides: claim.sides,
     unavailable: claim.unavailable,
-    route: claim.route,
     tracking: claim.tracking,
     sceneDepth: 0,
     sequence: state.sequence,
@@ -184,11 +201,13 @@ async function detectOnce() {
     }));
     state.tracks = updateTracks(state.tracks, detections, now);
     state.lastFrameMs = now;
-    state.zoneHit = centerZoneHit(state.tracks, video.videoWidth, video.videoHeight, now);
+    state.zoneHit = sideWarnings(state.tracks, video.videoWidth, video.videoHeight, now);
+    state.sides = (state.zoneHit.left ? SIDE_LEFT : 0) | (state.zoneHit.right ? SIDE_RIGHT : 0);
     drawTracks();
-    detectStatus.textContent = state.zoneHit
-      ? `Experimental center warning: ${state.zoneHit.className}, score ${state.zoneHit.score.toFixed(2)}, track ${state.zoneHit.trackId}. Not a distance.`
-      : "No supported class in the center zone. That is not an all-clear.";
+    const names = state.zoneHit.hits.map((hit) => `${hit.className} ${hit.side}`).join(", ");
+    detectStatus.textContent = state.zoneHit.hits.length
+      ? `Center-half boxes: ${names}. Image left is the left buzzer. Not a distance.`
+      : "No supported class in the center half. That is not an all-clear.";
   } catch (error) {
     state.modelError = true;
     state.zoneHit = null;
@@ -242,6 +261,7 @@ document.querySelector("#camera-stop").addEventListener("click", () => {
   state.lastFrameMs = null;
   state.tracks = [];
   state.zoneHit = null;
+  state.sides = 0;
   if (state.stream) {
     for (const track of state.stream.getTracks()) {
       track.stop();
@@ -277,9 +297,8 @@ document.querySelector("#model-load").addEventListener("click", async () => {
 });
 
 function manualEnabled(enabled) {
-  manualHazard.disabled = !enabled;
-  manualUnavailable.disabled = !enabled;
-  manualRoute.disabled = !enabled;
+  manualLeft.disabled = !enabled;
+  manualRight.disabled = !enabled;
 }
 
 manualMode.addEventListener("change", () => {
@@ -292,9 +311,8 @@ manualMode.addEventListener("change", () => {
 detectEnable.addEventListener("change", () => {
   if (detectEnable.checked) {
     manualMode.checked = false;
-    manualHazard.checked = false;
-    manualUnavailable.checked = false;
-    manualRoute.value = "0";
+    manualLeft.checked = false;
+    manualRight.checked = false;
   }
   manualEnabled(false);
 });
@@ -318,7 +336,7 @@ async function connectGatt(device) {
     status.addEventListener("characteristicvaluechanged", (event) => {
       const decoded = decodeStatus(new Uint8Array(event.target.value.buffer));
       boardStatus.textContent = decoded
-        ? `Board ${decoded.linkState === 1 ? "link outage" : "link heartbeat"}, sequence ${decoded.sequence}, pins hazard ${decoded.hazardOn} unavailable ${decoded.unavailableOn} route ${decoded.routeOn} link ${decoded.linkOn}.`
+        ? `Board ${decoded.linkState === 1 ? "link outage" : "link heartbeat"}, sequence ${decoded.sequence}, pins left ${decoded.leftOn} right ${decoded.rightOn} status ${decoded.statusOn} link ${decoded.linkOn}.`
         : "Board status did not match the 8-byte status packet.";
     });
   }

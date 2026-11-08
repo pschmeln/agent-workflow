@@ -14,24 +14,24 @@ extern "C" {
  * A plane-hit field is optional context and never authorizes a path.
  */
 
-#define CANE_PACKET_VERSION 1u
+#define CANE_PACKET_VERSION 2u
 #define CANE_PACKET_BYTES 18u
 #define CANE_STATUS_BYTES 8u
 #define CANE_WATCHDOG_MS 500u
 #define CANE_PLANE_CM_NONE 0xFFFFu
 #define CANE_PLANE_CM_MAX 2000u
 
-#define CANE_PIN_HAZARD 2
-#define CANE_PIN_UNAVAILABLE 3
-#define CANE_PIN_ROUTE 4
+#define CANE_PIN_LEFT 2
+#define CANE_PIN_STATUS 3
+#define CANE_PIN_RIGHT 4
 #define CANE_PIN_LINK 5
 
-#define CANE_HAZARD_PERIOD_MS 200u
-#define CANE_HAZARD_ON_MS 100u
-#define CANE_UNAVAILABLE_PERIOD_MS 500u
-#define CANE_UNAVAILABLE_ON_MS 250u
-#define CANE_ROUTE_PERIOD_MS 1000u
-#define CANE_ROUTE_ON_MS 200u
+#define CANE_SIDE_LEFT 0x01u
+#define CANE_SIDE_RIGHT 0x02u
+
+#define CANE_OBJECT_PERIOD_MS 200u
+#define CANE_OBJECT_ON_MS 100u
+#define CANE_FAULT_PERIOD_MS 1000u
 #define CANE_LINK_OK_PERIOD_MS 2000u
 #define CANE_LINK_OK_ON_MS 80u
 #define CANE_LINK_OUT_PERIOD_MS 200u
@@ -41,17 +41,6 @@ enum {
     CANE_SOURCE_CAMERA = 1,
     CANE_SOURCE_SIMULATION = 2,
     CANE_SOURCE_IMAGE_HEURISTIC = 3
-};
-
-enum {
-    CANE_HAZARD_NO_CLAIM = 0,
-    CANE_HAZARD_ELEVATED = 1
-};
-
-enum {
-    CANE_ROUTE_NONE = 0,
-    CANE_ROUTE_DEMO_LEFT = 1,
-    CANE_ROUTE_DEMO_RIGHT = 2
 };
 
 enum {
@@ -82,18 +71,16 @@ typedef struct {
     int scene_depth_supported;
     int has_plane_hit;
     float plane_hit_meters;
-    int simulation_elevated_hazard;
+    int simulation_sides;
     int simulation_unavailable;
-    int route_cue;
-    int image_heuristic_elevated;
+    int image_sides;
     int image_pipeline_ready;
 } cane_input_t;
 
 typedef struct {
     int source;
-    int hazard;
+    int sides;
     int system_unavailable;
-    int route_cue;
     int scene_depth_supported;
     int plane_hit_valid;
     uint16_t plane_hit_cm;
@@ -102,9 +89,8 @@ typedef struct {
 
 typedef struct {
     int source;
-    int hazard;
+    int sides;
     int system_unavailable;
-    int route_cue;
     int tracking;
     int scene_depth_supported;
     uint16_t plane_hit_cm;
@@ -119,21 +105,23 @@ typedef struct {
 } cane_link_t;
 
 typedef struct {
-    int hazard;
-    int unavailable;
-    int route;
+    int left;
+    int right;
+    int status;
     int link;
     int link_state;
 } cane_outputs_t;
 
 typedef struct {
     int link_state;
-    int hazard_on;
-    int unavailable_on;
-    int route_on;
+    int left_on;
+    int right_on;
+    int status_on;
     int link_on;
     uint32_t last_sequence;
 } cane_status_t;
+
+int cane_fault_blip(uint32_t now_ms);
 
 uint16_t cane_crc16(const uint8_t *data, size_t len);
 
