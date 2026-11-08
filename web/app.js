@@ -12,7 +12,7 @@ import {
   encodeCommand,
 } from "./protocol.js";
 import { claimForMode } from "./state.js";
-import { sideWarnings, updateTracks } from "./tracking.js";
+import { DEFAULT_MIN_APPARENT_SIZE, sideWarnings, updateTracks } from "./tracking.js";
 
 const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
 const COCO_URL = "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js";
@@ -157,6 +157,23 @@ async function sendClaim() {
   }
 }
 
+function minApparentSize() {
+  const control = document.querySelector("#size-threshold");
+  const percent = control ? Number(control.value) : DEFAULT_MIN_APPARENT_SIZE * 100;
+  return Number.isFinite(percent) ? percent / 100 : DEFAULT_MIN_APPARENT_SIZE;
+}
+
+function applySides(now) {
+  state.zoneHit = sideWarnings(
+    state.tracks,
+    video.videoWidth,
+    video.videoHeight,
+    now,
+    minApparentSize()
+  );
+  state.sides = (state.zoneHit.left ? SIDE_LEFT : 0) | (state.zoneHit.right ? SIDE_RIGHT : 0);
+}
+
 function drawTracks() {
   const width = video.videoWidth;
   const height = video.videoHeight;
@@ -167,18 +184,22 @@ function drawTracks() {
   overlay.height = height;
   const context = overlay.getContext("2d");
   context.clearRect(0, 0, width, height);
-  context.strokeStyle = "#ffe14a";
-  context.lineWidth = 3;
+  const sounded = new Set((state.zoneHit?.hits || []).map((hit) => hit.trackId));
+  const excluded = new Set((state.zoneHit?.excluded || []).map((hit) => hit.trackId));
   context.font = "20px sans-serif";
-  context.fillStyle = "#ffe14a";
+  context.lineWidth = 3;
   for (const track of state.tracks) {
+    const tooSmall = excluded.has(track.id);
+    context.strokeStyle = sounded.has(track.id) ? "#ffe14a" : tooSmall ? "#9aa0a6" : "#ffffff";
+    context.setLineDash(tooSmall ? [8, 6] : []);
     context.strokeRect(track.bbox.x, track.bbox.y, track.bbox.w, track.bbox.h);
-    context.fillText(`${track.id} ${track.className} ${track.score.toFixed(2)}`, track.bbox.x, track.bbox.y + 22);
+    context.fillStyle = context.strokeStyle;
+    const note = tooSmall ? " too small" : "";
+    context.fillText(`${track.id} ${track.className} ${track.score.toFixed(2)}${note}`, track.bbox.x, track.bbox.y + 22);
   }
-  const x = width * 0.25;
-  const y = height * 0.25;
+  context.setLineDash([]);
   context.strokeStyle = "#ffffff";
-  context.strokeRect(x, y, width * 0.5, height * 0.5);
+  context.strokeRect(width * 0.25, height * 0.25, width * 0.5, height * 0.5);
 }
 
 let detectTimer = 0;
@@ -201,8 +222,7 @@ async function detectOnce() {
     }));
     state.tracks = updateTracks(state.tracks, detections, now);
     state.lastFrameMs = now;
-    state.zoneHit = sideWarnings(state.tracks, video.videoWidth, video.videoHeight, now);
-    state.sides = (state.zoneHit.left ? SIDE_LEFT : 0) | (state.zoneHit.right ? SIDE_RIGHT : 0);
+    applySides(now);
     drawTracks();
     const names = state.zoneHit.hits.map((hit) => `${hit.className} ${hit.side}`).join(", ");
     detectStatus.textContent = state.zoneHit.hits.length
@@ -211,6 +231,7 @@ async function detectOnce() {
   } catch (error) {
     state.modelError = true;
     state.zoneHit = null;
+    state.sides = 0;
     setBox(modelStatus, `Model stopped: ${error.message}. No brightness substitute is used.`, "bad");
   }
 }
@@ -404,6 +425,15 @@ document.addEventListener("visibilitychange", () => {
     state.zoneHit = null;
     detectStatus.textContent = "This page is in the background. The image warning is cleared. That is not an all-clear.";
   }
+});
+
+document.querySelector("#size-threshold").addEventListener("input", (event) => {
+  const percent = Number(event.target.value);
+  document.querySelector("#size-readout").textContent =
+    `Sound a counted box only when its width or height covers at least ${percent}% of the picture. This is not meters.`;
+  applySides(performance.now());
+  drawTracks();
+  sendClaim();
 });
 
 setInterval(sendClaim, HEARTBEAT_MS);

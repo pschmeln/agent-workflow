@@ -3,6 +3,14 @@ export const IOU_THRESHOLD = 0.3;
 export const TRACK_MAX_AGE_MS = 500;
 export const SUPPORTED_CLASSES = ["person", "bicycle", "car", "motorcycle", "bus", "truck"];
 export const MIN_SCORE = 0.5;
+export const DEFAULT_MIN_APPARENT_SIZE = 0.2;
+
+export function apparentSize(bbox, width, height) {
+  if (width <= 0 || height <= 0) {
+    return 0;
+  }
+  return Math.max(bbox.w / width, bbox.h / height);
+}
 
 export function iou(a, b) {
   const ax2 = a.x + a.w;
@@ -93,8 +101,8 @@ export function centerZoneHit(tracks, width, height, nowMs) {
   return best;
 }
 
-export function sideWarnings(tracks, width, height, nowMs) {
-  const result = { left: false, right: false, onDivider: false, hits: [] };
+export function sideWarnings(tracks, width, height, nowMs, minApparentSize = DEFAULT_MIN_APPARENT_SIZE) {
+  const result = { left: false, right: false, onDivider: false, hits: [], excluded: [] };
   if (width <= 0 || height <= 0) {
     return result;
   }
@@ -118,21 +126,32 @@ export function sideWarnings(tracks, width, height, nowMs) {
     let side = "left";
     if (cx > midpoint) {
       side = "right";
-      result.right = true;
     } else if (cx < midpoint) {
-      result.left = true;
+      side = "left";
     } else {
       side = "divider";
-      result.left = true;
-      result.right = true;
-      result.onDivider = true;
     }
-    result.hits.push({
+    const seen = {
       trackId: track.id,
       className: track.className,
       score: track.score,
       side,
-    });
+      apparentSize: apparentSize(track.bbox, width, height),
+    };
+    if (seen.apparentSize < minApparentSize) {
+      result.excluded.push(seen);
+      continue;
+    }
+    if (side === "right") {
+      result.right = true;
+    } else if (side === "left") {
+      result.left = true;
+    } else {
+      result.left = true;
+      result.right = true;
+      result.onDivider = true;
+    }
+    result.hits.push(seen);
   }
   return result;
 }
