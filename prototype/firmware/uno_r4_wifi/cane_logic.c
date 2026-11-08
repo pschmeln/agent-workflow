@@ -89,6 +89,19 @@ void cane_assess(const cane_input_t *in, cane_assessment_t *out) {
         return;
     }
 
+    if (in->source == CANE_SOURCE_IMAGE_HEURISTIC) {
+        clear_plane(out);
+        out->route_cue = CANE_ROUTE_NONE;
+        if (!in->image_pipeline_ready) {
+            out->system_unavailable = 1;
+            out->hazard = CANE_HAZARD_NO_CLAIM;
+            return;
+        }
+        out->system_unavailable = 0;
+        out->hazard = in->image_heuristic_elevated ? CANE_HAZARD_ELEVATED : CANE_HAZARD_NO_CLAIM;
+        return;
+    }
+
     if (in->source == CANE_SOURCE_SIMULATION) {
         out->hazard = in->simulation_elevated_hazard ? CANE_HAZARD_ELEVATED : CANE_HAZARD_NO_CLAIM;
         out->system_unavailable = in->simulation_unavailable ? 1 : 0;
@@ -148,7 +161,8 @@ void cane_command_from_assessment(
 }
 
 int cane_command_admissible(const cane_command_t *command) {
-    if (command->source != CANE_SOURCE_CAMERA && command->source != CANE_SOURCE_SIMULATION) {
+    if (command->source != CANE_SOURCE_CAMERA && command->source != CANE_SOURCE_SIMULATION &&
+        command->source != CANE_SOURCE_IMAGE_HEURISTIC) {
         return 0;
     }
     if (command->hazard != CANE_HAZARD_NO_CLAIM && command->hazard != CANE_HAZARD_ELEVATED) {
@@ -166,6 +180,11 @@ int cane_command_admissible(const cane_command_t *command) {
     }
     if (command->source == CANE_SOURCE_CAMERA) {
         if (command->hazard != CANE_HAZARD_NO_CLAIM || command->route_cue != CANE_ROUTE_NONE) {
+            return 0;
+        }
+    }
+    if (command->source == CANE_SOURCE_IMAGE_HEURISTIC) {
+        if (command->route_cue != CANE_ROUTE_NONE || command->plane_hit_cm != CANE_PLANE_CM_NONE) {
             return 0;
         }
     }
