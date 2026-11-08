@@ -43,9 +43,13 @@
   <p>D5 is a link light on the board, not a third buzzer. A slow blip means packets are arriving. A fast pattern means the link timed out. Quiet buzzers are not an all-clear.</p>
 
   <h2>5. Camera, model, and Bluetooth together</h2>
+  <label>Looks-close box size
+    <input id="size-threshold" type="range" min="5" max="60" value="20" step="1">
+  </label>
+  <p id="size-readout">Default is 20% of the picture width or height. This is not meters.</p>
   <label><input type="checkbox" id="detect-enable"> Send an experimental center-zone warning</label>
   <p id="claim-status">Combined warning is off.</p>
-  <p>The same classes and the same center half of the picture still decide whether anything counts. A counted box whose center is left of the picture's middle sounds the left buzzer. Right of the middle sounds the right buzzer. A center exactly on the middle line sounds both, for that one box. Boxes outside the center half are ignored. This is left and right in the camera picture. It is not a turn instruction and not a distance.</p>
+  <p>The same classes, scores, and center half still decide what can count. A counted box also has to look large: its width or height must be at least the percentage above. A gray dashed box says "too small" and does not beep. A big distant object can still pass. A small nearby object can still fail. This is not a measured distance. Image left still sounds D2 and image right still sounds D4. A box center exactly on the middle line sounds both. Boxes outside the center half stay ignored.</p>
 
   <h2>What you do, in order</h2>
   <ol>

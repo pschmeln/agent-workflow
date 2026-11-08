@@ -109,6 +109,46 @@ test("center gate chooses left, right, both, or none", () => {
   assert.equal(none.right, false);
 });
 
+test("small centered boxes do not sound and large boxes keep their sides", () => {
+  const smallLeft = track(1, "person", 0.95, box(40, 40, 10, 10));
+  const largeLeft = track(2, "person", 0.9, box(10, 10, 40, 50));
+  const largeRight = track(3, "car", 0.8, box(55, 15, 30, 40));
+  const quiet = sideWarnings([smallLeft], 100, 100, 0, 0.2);
+  assert.equal(quiet.left, false);
+  assert.equal(quiet.right, false);
+  assert.equal(quiet.excluded.length, 1);
+  assert.equal(quiet.excluded[0].side, "left");
+
+  const left = sideWarnings([largeLeft], 100, 100, 0, 0.2);
+  assert.equal(left.left, true);
+  assert.equal(left.right, false);
+  assert.equal(left.hits[0].side, "left");
+
+  const right = sideWarnings([largeRight], 100, 100, 0, 0.2);
+  assert.equal(right.left, false);
+  assert.equal(right.right, true);
+
+  const both = sideWarnings([largeLeft, largeRight, smallLeft], 100, 100, 0, 0.2);
+  assert.equal(both.left, true);
+  assert.equal(both.right, true);
+  assert.equal(both.hits.length, 2);
+  assert.equal(both.excluded.length, 1);
+
+  const lowered = sideWarnings([smallLeft], 100, 100, 0, 0.1);
+  assert.equal(lowered.left, true);
+  assert.equal(lowered.excluded.length, 0);
+  const raised = sideWarnings([largeLeft], 100, 100, 0, 0.6);
+  assert.equal(raised.left, false);
+  assert.equal(raised.excluded.length, 1);
+
+  const lowScore = sideWarnings([track(9, "person", 0.4, box(10, 10, 50, 60))], 100, 100, 0, 0.2);
+  assert.equal(lowScore.hits.length, 0);
+  assert.equal(lowScore.excluded.length, 0);
+  const outside = sideWarnings([track(8, "bus", 0.9, box(0, 0, 40, 40))], 100, 100, 0, 0.2);
+  assert.equal(outside.left, false);
+  assert.equal(outside.excluded.length, 0);
+});
+
 test("iou keeps an id and expiry drops it", () => {
   const first = updateTracks([], [{ className: "person", score: 0.9, bbox: box(0, 0, 10, 10) }], 1000);
   const second = updateTracks(first, [{ className: "person", score: 0.8, bbox: box(1, 1, 10, 10) }], 1100);
