@@ -92,3 +92,47 @@ export function centerZoneHit(tracks, width, height, nowMs) {
   }
   return best;
 }
+
+export function sideWarnings(tracks, width, height, nowMs) {
+  const result = { left: false, right: false, onDivider: false, hits: [] };
+  if (width <= 0 || height <= 0) {
+    return result;
+  }
+  const x0 = width * CENTER_MARGIN;
+  const x1 = width * (1 - CENTER_MARGIN);
+  const y0 = height * CENTER_MARGIN;
+  const y1 = height * (1 - CENTER_MARGIN);
+  const midpoint = width / 2;
+  for (const track of tracks) {
+    if (nowMs - track.lastSeen > TRACK_MAX_AGE_MS) {
+      continue;
+    }
+    if (!SUPPORTED_CLASSES.includes(track.className) || track.score < MIN_SCORE) {
+      continue;
+    }
+    const cx = track.bbox.x + track.bbox.w / 2;
+    const cy = track.bbox.y + track.bbox.h / 2;
+    if (cx < x0 || cx > x1 || cy < y0 || cy > y1) {
+      continue;
+    }
+    let side = "left";
+    if (cx > midpoint) {
+      side = "right";
+      result.right = true;
+    } else if (cx < midpoint) {
+      result.left = true;
+    } else {
+      side = "divider";
+      result.left = true;
+      result.right = true;
+      result.onDivider = true;
+    }
+    result.hits.push({
+      trackId: track.id,
+      className: track.className,
+      score: track.score,
+      side,
+    });
+  }
+  return result;
+}

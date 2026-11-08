@@ -16,31 +16,27 @@ static void emit(const char *name, const cane_command_t *command, int last) {
     printf("]}%s\n", last ? "" : ",");
 }
 
-static cane_command_t command_for(int source, int hazard, int unavailable, int route, uint16_t plane_cm) {
+static cane_command_t command_for(int source, int sides, int unavailable) {
     cane_command_t command;
     memset(&command, 0, sizeof(command));
     command.source = source;
-    command.hazard = hazard;
+    command.sides = sides;
     command.system_unavailable = unavailable;
-    command.route_cue = route;
     command.tracking = CANE_TRACKING_NORMAL;
-    command.plane_hit_cm = plane_cm;
+    command.plane_hit_cm = CANE_PLANE_CM_NONE;
     command.sequence = 9;
     command.time_ms_low = 200;
     return command;
 }
 
 int main(void) {
-    cane_command_t simulation = command_for(
-        CANE_SOURCE_SIMULATION, CANE_HAZARD_ELEVATED, 0, CANE_ROUTE_DEMO_LEFT, CANE_PLANE_CM_NONE);
-    cane_command_t image = command_for(
-        CANE_SOURCE_IMAGE_HEURISTIC, CANE_HAZARD_ELEVATED, 0, CANE_ROUTE_NONE, CANE_PLANE_CM_NONE);
-    cane_command_t camera = command_for(
-        CANE_SOURCE_CAMERA, CANE_HAZARD_NO_CLAIM, 1, CANE_ROUTE_NONE, CANE_PLANE_CM_NONE);
+    cane_command_t left = command_for(CANE_SOURCE_SIMULATION, CANE_SIDE_LEFT, 0);
+    cane_command_t both = command_for(CANE_SOURCE_IMAGE_HEURISTIC, CANE_SIDE_LEFT | CANE_SIDE_RIGHT, 0);
+    cane_command_t none = command_for(CANE_SOURCE_CAMERA, 0, 1);
     printf("[\n");
-    emit("simulation", &simulation, 0);
-    emit("image", &image, 0);
-    emit("camera", &camera, 1);
+    emit("left", &left, 0);
+    emit("both", &both, 0);
+    emit("none", &none, 1);
     printf("]\n");
     return 0;
 }

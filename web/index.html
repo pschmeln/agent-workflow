@@ -9,7 +9,7 @@
 <body>
   <h1>Cane demo</h1>
   <p class="banner" id="script-state">The page file is open. The script has not started.</p>
-  <p>This page is a bench demo for a standard iPhone 16 with the Bluefy app, plus an Arduino UNO R4 WiFi. Video stays on the phone. Nothing here is a measured distance, a collision alarm, or a safe direction. A quiet hazard actuator is not an all-clear. We have not run this page on a phone.</p>
+  <p>This page is a bench demo for a standard iPhone 16 with the Bluefy app, plus an Arduino UNO R4 WiFi and two blue Grove buzzers. Video stays on the phone. A left box is not a command to turn left. Quiet buzzers are not an all-clear. We have not run this page on a phone or heard the buzzers.</p>
 
   <h2>1. What this phone can see</h2>
   <div id="diagnostics" class="warn">Checking this page.</div>
@@ -27,37 +27,30 @@
   </div>
 
   <h2>3. Model only</h2>
-  <p>Loads a COCO-SSD model in this browser and draws boxes. Boxes are 2D image positions. They are not meters. This does not send a hazard until section 5 is on.</p>
+  <p>Loads a COCO-SSD model in this browser and draws boxes. Boxes are 2D image positions. They are not meters. This does not sound a buzzer until section 5 is on.</p>
   <button type="button" id="model-load">Load object model</button>
   <p id="model-status">Model is not loaded.</p>
   <p id="detect-status">No detection yet. No detection is not an all-clear.</p>
 
   <h2>4. Bluetooth only</h2>
-  <p>Connects to the board named CaneDemo. The switches below are a manual simulation. They are not the camera.</p>
+  <p>Connects to the board named CaneDemo. The switches below sound one buzzer at a time. They are not the camera and they are not turn commands.</p>
   <button type="button" id="ble-connect">Connect to CaneDemo</button>
   <p id="ble-status">Bluetooth is not connected.</p>
   <p id="board-status">No board status yet.</p>
   <label><input type="checkbox" id="manual-mode"> Use manual bench commands</label>
-  <label><input type="checkbox" id="manual-hazard"> Manual D2 hazard</label>
-  <label><input type="checkbox" id="manual-unavailable"> Manual D3 unavailable</label>
-  <label>Manual D4 route label
-    <select id="manual-route">
-      <option value="0">Off</option>
-      <option value="1">Left label</option>
-      <option value="2">Right label</option>
-    </select>
-  </label>
-  <p>D4's left and right labels are not clear directions. D5 is the board's own link light: a slow blip while packets arrive, and a fast pattern when packets stop.</p>
+  <label><input type="checkbox" id="manual-left"> Manual left buzzer (D2)</label>
+  <label><input type="checkbox" id="manual-right"> Manual right buzzer (D4)</label>
+  <p>D5 is a link light on the board, not a third buzzer. A slow blip means packets are arriving. A fast pattern means the link timed out. Quiet buzzers are not an all-clear.</p>
 
   <h2>5. Camera, model, and Bluetooth together</h2>
   <label><input type="checkbox" id="detect-enable"> Send an experimental center-zone warning</label>
   <p id="claim-status">Combined warning is off.</p>
-  <p>The warning can turn on only for a person, bicycle, car, motorcycle, bus, or truck whose box center is in the middle of the picture and whose score is at least 0.5. That is an image guess. It is not proof of an obstacle and it does not choose a direction.</p>
+  <p>The same classes and the same center half of the picture still decide whether anything counts. A counted box whose center is left of the picture's middle sounds the left buzzer. Right of the middle sounds the right buzzer. A center exactly on the middle line sounds both, for that one box. Boxes outside the center half are ignored. This is left and right in the camera picture. It is not a turn instruction and not a distance.</p>
 
   <h2>What you do, in order</h2>
   <ol>
     <li>Flash <code>prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino</code> to an Arduino UNO R4 WiFi. In Arduino IDE pick that board, install ArduinoBLE 2.1.0, and use the UNO R4 board package 1.6.0. The sketch opens serial at 115200 and prints <code>Cane demo controller</code> and <code>Advertising CaneDemo as a BLE peripheral.</code></li>
-    <li>Wire four external drivers. D2 is hazard, D3 is unavailable, D4 is the route demo, D5 is the link. Do not power an actuator from a header pin.</li>
+    <li>Plug one Grove cable from the left blue buzzer into the D2 socket, and one from the right blue buzzer into the D4 socket. Leave D3 and D5 without buzzers. Do not power a bare motor from a header pin.</li>
     <li>Install Bluefy yourself from the App Store. Open this HTTPS page in Bluefy on the iPhone 16. A laptop is not the runtime.</li>
     <li>Read section 1. Then try camera alone, model alone, and Bluetooth alone. Then turn on section 5.</li>
     <li>With a sighted spotter, check the physical outputs listed at the bottom. Do not cover anyone's eyes. The cane you already use stays the cane.</li>
@@ -67,7 +60,8 @@
   <ul>
     <li>Before the phone connects, D5 uses the fast outage pattern and D2, D3, and D4 stay off. Serial prints <code>link=outage</code>.</li>
     <li>After Connect, D5 changes to a short blip about every 2 seconds. Serial prints <code>accepted source=</code> and an increasing <code>seq</code>.</li>
-    <li>Manual D2 pulses only the hazard driver. Manual D3 pulses unavailable. Manual D4 pulses the route driver. None of those means the path is clear.</li>
+    <li>Manual left sounds only D2. Manual right sounds only D4. Both switches together sound the steady object pattern on both buzzers.</li>
+    <li>Stop the camera while connected. Both buzzers change to a double blip once a second, and D3 stays on. That double blip means not ready. It does not mean objects are on both sides.</li>
     <li>Switch the phone away from Bluefy, or turn Bluetooth off. Within about a second D2, D3, and D4 go off and D5 returns to the fast pattern.</li>
     <li>Come back and tap Connect if it does not reconnect. Section 5 stays off until you turn it on again.</li>
   </ul>

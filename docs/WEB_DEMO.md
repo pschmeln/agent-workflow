@@ -1,43 +1,48 @@
-# Bluefy page
+# Two blue buzzers
 
-The page is [web/index.html](../web/index.html). It is the phone runtime for this increment. A standard iPhone 16, with Bluefy installed by you, opens the page. The page uses the rear camera, runs COCO-SSD in the browser, and writes the existing 18-byte Bluetooth packet to the UNO R4 WiFi. A laptop is not part of that runtime.
+Use the Bluefy page at [web/index.html](../web/index.html) on a standard iPhone 16. Reflash the board with [prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino](../prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino) before opening the new page. An old version 1 sketch will reject the new packets, and an old page will be rejected by this sketch. Neither mismatch sounds a side buzzer.
 
-This repository has not run that combination on a phone. A green test log is not a Bluefy result.
+The page has not been run on a phone here, and the buzzers have not been heard here.
 
-## What the packet means
+## Pins
 
-The native camera path still cannot send an elevated hazard. The web page uses a separate source, image heuristic, value 3.
+| Cane side | Grove socket | What it does |
+| --- | --- | --- |
+| Left | D2 | Left buzzer. Image-left boxes, or the manual left switch. |
+| None | D3 | Status output only. On during the not-ready double blip. No buzzer. |
+| Right | D4 | Right buzzer. Image-right boxes, or the manual right switch. |
+| None | D5 | Link indicator. Slow blip while packets arrive. Fast pattern when the 500 ms watchdog expires. No buzzer. |
 
-- D2 pulses only for an elevated claim. From the web page that means a supported box is in the center of the picture, or you turned on the manual D2 switch. It is not a measured collision.
-- D3 pulses when the camera, model, or page is not ready. Quiet D3 is not an all-clear.
-- D4 pulses only for a manual left or right label. That label is not a clear direction.
-- D5 is driven by the board. A short blip means packets are arriving. A fast pattern means the 500 ms watchdog expired. The page tries to send every 200 ms while it is connected.
+Use the Grove sockets on D2 and D4. Do not use D3 as the right side. A Grove cable is SIG, VCC, and GND. The module in the photo is marked GND, VCC, NC, SIG. NC is unused. SIG goes to the digital pin through the Grove socket.
 
-The image-heuristic packet is rejected if it contains a distance or a route. The model does not report meters, speed, or time to contact. If the model fails, the page shows the error and does not invent a warning from brightness.
+Seeed's older Grove Buzzer v1.1 page describes an onboard transistor. That description is not proof for a module marked v1.2. Before you apply power, match your module to its own Seeed page. Connect it only if SIG is a logic input to the module's own driver. Do not connect a bare motor, or a piezo that expects the GPIO to supply its current, to D2 or D4. This repository does not add a new current rating for the module.
 
-## Software already in the repo
+## How a side is chosen
 
-- Sketch: [prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino](../prototype/firmware/uno_r4_wifi/uno_r4_wifi.ino)
-- The compile job that passed on the previous pull request used Arduino CLI 1.5.1, board package `arduino:renesas_uno` 1.6.0, and ArduinoBLE 2.1.0. This page keeps those versions.
-- Pick the board Arduino UNO R4 WiFi. The sketch calls `Serial.begin(115200)` and prints `Cane demo controller`, `Advertising CaneDemo as a BLE peripheral.`, `accepted source=`, and `rejected packet`.
-- Pinned browser downloads, only when you tap Load object model: TensorFlow.js 4.22.0 and COCO-SSD 2.2.3 from jsDelivr, both Apache-2.0. The weights are the library's `lite_mobilenet_v2` files at `https://storage.googleapis.com/tfjs-models/savedmodel/ssdlite_mobilenet_v2/model.json`. The camera picture is not sent anywhere.
+Section 5 still accepts only person, bicycle, car, motorcycle, bus, and truck, with a score of at least 0.5, and only when the box center is inside the middle half of the picture (from 25% to 75% of both width and height). Boxes farther out are ignored.
 
-## What only you can do
+For those boxes, image left and image right are the two sides of the unmirrored rear-camera frame. The page does not flip the video. A center x less than half the picture width sets the left bit. Greater than half sets the right bit. Exactly half sets both bits for that one box. Several boxes are combined, so a left box and a right box can sound together. That both-sides object pattern is a steady pulse. It is not the not-ready double blip.
 
-1. Merge the pull request.
-2. In the repository Settings, open Pages, and set the source to GitHub Actions. The workflow [pages.yml](../.github/workflows/pages.yml) does not run for a pull request, and it cannot switch that setting. Until that source is selected, there is no published page. `https://pschmeln.github.io/agent-workflow/` returned 404 when this branch was prepared.
-3. After the Pages job on `main` succeeds, open the URL printed by that job in Bluefy on the iPhone 16. Do not type a guessed address.
-4. Install Bluefy yourself. Flash the sketch. Wire four external drivers to D2, D3, D4, and D5. Do not power actuators from the header pins.
-5. With a sighted spotter, use the page sections one at a time, then the combined switch. Background the app and confirm D5 changes to the fast pattern. Do not cover anyone's eyes.
+The not-ready double blip plays on both buzzers when the camera, model, or page is not ready, and D3 stays on. It means the pipeline is down. It does not mean objects are on both sides. Quiet buzzers are not an all-clear: watch D5. A slow blip means the link is alive. A fast pattern means the link timed out.
 
-## Actuator check
+## Update steps
 
-| What you do | What should move |
+1. In Arduino IDE, select Arduino UNO R4 WiFi. Use the UNO R4 board package 1.6.0 and ArduinoBLE 2.1.0, the same versions the compile job uses.
+2. Open the sketch above and upload it. Serial Monitor is 115200. The sketch prints `Cane demo controller`, `D2 left buzzer, D4 right buzzer, D3 status logic, D5 link logic.`, and `Advertising CaneDemo as a BLE peripheral.`
+3. Plug the left buzzer into Grove D2 and the right buzzer into Grove D4.
+4. Merge this pull request, set GitHub Pages to GitHub Actions, and open the Pages URL in Bluefy. Reload the page so Bluefy does not keep the previous file. The old page and the new sketch do not belong together.
+5. On the page, try camera alone, model alone, then Bluetooth. Use the manual left and manual right switches one at a time. Then turn on section 5.
+
+## What a spotter can check
+
+| What you do | What should happen |
 | --- | --- |
-| Phone not connected | D5 fast, D2 D3 D4 off |
-| Connected, no manual switch and no combined warning | D3 unavailable pattern, D5 slow blip |
-| Manual D2 | D2 pulses, serial `source=simulation` |
-| Manual D4 left or right label | D4 pulses. The label is not a safe turn |
-| Combined warning on, supported object in the center box | D2 pulses, serial `source=image-heuristic` |
-| Combined warning on, nothing in the center | D2 off. The page says this is not an all-clear |
-| Leave Bluefy or disconnect | D5 fast within about a second |
+| Power the board before the phone connects | D2 and D4 quiet, D5 fast |
+| Connect, leave section 5 off and manual off | Both buzzers double-blip, D3 on, D5 slow. This is not-ready, not two objects |
+| Manual left only | D2 steady pulse, D4 quiet, serial `source=simulation` |
+| Manual right only | D4 steady pulse, D2 quiet |
+| Section 5 on, one supported box left of center | D2 steady pulse, serial `source=image-heuristic` |
+| Section 5 on, boxes on both image sides | D2 and D4 steady pulse, D3 off |
+| Stop the camera or leave Bluefy | Double-blip or, if the link drops, D5 fast and both buzzers quiet |
+
+Do this with eyes uncovered. The cane you already use stays the cane.

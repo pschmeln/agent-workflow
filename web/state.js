@@ -1,8 +1,7 @@
 import {
-  HAZARD_ELEVATED,
-  HAZARD_NO_CLAIM,
   PLANE_CM_NONE,
-  ROUTE_NONE,
+  SIDE_LEFT,
+  SIDE_RIGHT,
   SOURCE_IMAGE_HEURISTIC,
   SOURCE_SIMULATION,
   STALE_MS,
@@ -20,13 +19,16 @@ export function pipelineReady(input) {
   return true;
 }
 
+function cleanSides(sides) {
+  return sides & (SIDE_LEFT | SIDE_RIGHT);
+}
+
 export function imageHeuristicClaim(input) {
   const ready = pipelineReady(input);
   return {
     source: SOURCE_IMAGE_HEURISTIC,
-    hazard: ready && input.detectionEnabled && input.zoneHit ? HAZARD_ELEVATED : HAZARD_NO_CLAIM,
+    sides: ready && input.detectionEnabled ? cleanSides(input.sides) : 0,
     unavailable: ready ? 0 : 1,
-    route: ROUTE_NONE,
     planeCm: PLANE_CM_NONE,
     sceneDepth: 0,
     tracking: ready ? TRACKING_NORMAL : TRACKING_UNAVAILABLE,
@@ -35,18 +37,20 @@ export function imageHeuristicClaim(input) {
 }
 
 export function manualClaim(input) {
-  let route = input.route;
-  if (route !== 0 && route !== 1 && route !== 2) {
-    route = ROUTE_NONE;
+  let sides = 0;
+  if (input.left) {
+    sides |= SIDE_LEFT;
+  }
+  if (input.right) {
+    sides |= SIDE_RIGHT;
   }
   return {
     source: SOURCE_SIMULATION,
-    hazard: input.hazard ? HAZARD_ELEVATED : HAZARD_NO_CLAIM,
-    unavailable: input.unavailable ? 1 : 0,
-    route,
+    sides,
+    unavailable: 0,
     planeCm: PLANE_CM_NONE,
     sceneDepth: 0,
-    tracking: input.tabHidden ? TRACKING_UNAVAILABLE : TRACKING_NORMAL,
+    tracking: TRACKING_NORMAL,
     experimental: false,
   };
 }

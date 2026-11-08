@@ -38,22 +38,22 @@ The camera path can report tracking, an ARKit camera step, and an optional plane
 
 The simulation path is a separate bench control on the phone. It can request the D2 hazard actuator, the D3 unavailable actuator, and a D4 left or right label. The screen says the input is simulated. Those controls do not read the camera and do not mean an obstacle was detected. The shared encoder rejects a camera-sourced hazard or a camera-sourced route cue, so a buggy packet of that shape does not move the actuators.
 
-There is no random left or right choice. Nothing in the camera path picks a direction.
+The Bluefy page can sound the left buzzer, the right buzzer, or both from boxes in the center half of the picture. That is image left and image right. It is not a turn command. The native camera packet still keeps both side bits off.
 
-## Four channels
+## Two buzzers
 
 | Output | Pin | Meaning while the link is alive |
 | --- | --- | --- |
-| Hazard | D2 | Pulses only for an elevated claim. Off is not an all-clear. |
-| System unavailable | D3 | Pulses when the selected source says the pipeline cannot support a claim. |
-| Route demo | D4 | Pulses for a manual left or right label. The label is on the phone and in the claim. The pulse does not mean that side is safe. |
-| Link | D5 | Board-owned. A short blip every 2 seconds means packets are arriving. A fast, mostly-on pattern means the watchdog expired. |
+| Left buzzer | D2 Grove socket | Steady pulse when the claim has the left bit. |
+| Status logic | D3 | On during the not-ready pattern. Do not put a buzzer here. |
+| Right buzzer | D4 Grove socket | Steady pulse when the claim has the right bit. |
+| Link indicator | D5 | Board-owned. A short blip every 2 seconds means packets are arriving. A fast pattern means the watchdog expired. Not a buzzer. |
 
-The programmed watchdog is 500 ms after the last valid packet, using the board's `millis()`. At 500 ms the link is still a heartbeat. At 501 ms it is an outage. During an outage the board forces D2, D3, and D4 off and keeps the outage pattern on D5. A rejected packet does not refresh the watchdog. Before the first valid packet, the board is already in outage.
+Packet version is 2. Byte 2 is a side bitmask: 1 left, 2 right, 3 both. Byte 4 is always 0. A version 1 packet is rejected and does not sound a side.
 
-Silence on all four outputs means the board is unpowered, the firmware is not running, or the drivers are disconnected. That is a fault, not a clear path.
+The not-ready pattern is a double blip on both buzzers once a second, with D3 held on. That pattern is not "objects on both sides." Objects on both sides use the steady pulse on both buzzers and leave D3 off.
 
-The patterns are different periods in code so a supervisor can tell the channels apart. Whether a particular actuator feels distinct is a bench check, not a result recorded here.
+The programmed watchdog is 500 ms after the last valid packet, using the board's `millis()`. At 500 ms the link is still a heartbeat. At 501 ms it is an outage. During an outage the board forces D2 and D4 off and keeps the fast pattern on D5. Quiet buzzers are not an all-clear. If D5 is also quiet, the board is unpowered or not running.
 
 ## Actuator wiring
 
