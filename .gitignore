@@ -18,3 +18,5 @@ __pycache__/
 
 # Host test binary
 prototype/build/
+.neon
+node_modules/
